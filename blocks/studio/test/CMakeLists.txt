@@ -25,3 +25,17 @@ gr4_studio_add_block_test(qa_StudioScalarSink ${GR4_STUDIO_HTTPLIB_TARGET})
 gr4_studio_add_block_test(qa_StudioWaterfallSink)
 
 gr4_studio_add_block_test(qa_StudioDataSetSink)
+target_compile_options(qa_StudioDataSetSink PRIVATE -UNDEBUG)
+set_tests_properties(qa_StudioDataSetSink PROPERTIES TIMEOUT 20)
+
+gr4_studio_add_block_test(qa_StudioDataSetWaterfallSink)
+target_compile_options(qa_StudioDataSetWaterfallSink PRIVATE -UNDEBUG)
+set_tests_properties(qa_StudioDataSetWaterfallSink PROPERTIES TIMEOUT 30)
+
+gr4_studio_add_block_test(qa_StudioAnnotationSink)
+target_compile_options(qa_StudioAnnotationSink PRIVATE -UNDEBUG)
+set_tests_properties(qa_StudioAnnotationSink PROPERTIES TIMEOUT 60)
+
+gr4_studio_add_block_test(qa_StudioTableSink)
+target_compile_options(qa_StudioTableSink PRIVATE -UNDEBUG)
+set_tests_properties(qa_StudioTableSink PROPERTIES TIMEOUT 60)

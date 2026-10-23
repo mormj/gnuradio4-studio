@@ -9,14 +9,17 @@
 #if defined(__EMSCRIPTEN__)
 #include <gnuradio-4.0/studio/StudioWasmTransport.hpp>
 #else
+#include <gnuradio-4.0/studio/StudioIncrementalWebSocket.hpp>
 #include <httplib.h>
 #endif
 
 #include <algorithm>
+#include <cmath>
 #include <cstddef>
 #include <cstdint>
 #include <functional>
 #include <limits>
+#include <locale>
 #include <memory>
 #include <mutex>
 #include <span>
@@ -42,7 +45,16 @@ inline std::string escapeJson(std::string_view text) {
         case '\n': out += "\\n"; break;
         case '\r': out += "\\r"; break;
         case '\t': out += "\\t"; break;
-        default: out += c; break;
+        default:
+            if (static_cast<unsigned char>(c) < 32U) {
+                constexpr char hex[] = "0123456789abcdef";
+                out += "\\u00";
+                out += hex[static_cast<unsigned char>(c) >> 4U];
+                out += hex[static_cast<unsigned char>(c) & 15U];
+            } else {
+                out += c;
+            }
+            break;
         }
     }
     return out;
@@ -171,9 +183,102 @@ inline bool isHttpTransport(const std::string& transport) {
     return transport == "http_snapshot" || transport == "http_poll";
 }
 
+// Preserve native metadata without routing measurements through an application
+// runtime.
+inline void spectrumMetadataJson(std::ostream& out, const gr::pmt::Value& value) {
+    gr::pmt::ValueVisitor([&out](const auto& item) {
+        using V = std::decay_t<decltype(item)>;
+        if constexpr (std::same_as<V, gr::property_map>) {
+            out << '{';
+            bool first = true;
+            for (const auto& [key, entry] : item) {
+                if (!first) {
+                    out << ',';
+                }
+                first = false;
+                out << '"' << escapeJson(key) << "\":";
+                spectrumMetadataJson(out, entry);
+            }
+            out << '}';
+        } else if constexpr (std::is_convertible_v<V, std::string_view>) {
+            out << '"' << escapeJson(std::string_view(item)) << '"';
+        } else if constexpr (std::same_as<V, bool>) {
+            out << (item ? "true" : "false");
+        } else if constexpr (std::integral<V>) {
+            // Integers include nanosecond timestamps and observation identifiers.
+            if constexpr (std::is_signed_v<V>) {
+                out << '"' << static_cast<std::intmax_t>(item) << '"';
+            } else {
+                out << '"' << static_cast<std::uintmax_t>(item) << '"';
+            }
+        } else if constexpr (std::floating_point<V>) {
+            if (std::isfinite(item)) {
+                out << item;
+            } else {
+                out << "null";
+            }
+        } else if constexpr (std::ranges::range<V>) {
+            out << '[';
+            bool first = true;
+            for (const auto& entry : item) {
+                if (!first) {
+                    out << ',';
+                }
+                first = false;
+                spectrumMetadataJson(out, gr::pmt::Value(entry));
+            }
+            out << ']';
+        } else {
+            out << "null"; // Non-JSON PMT values have no JSON representation.
+        }
+    }).visit(value);
+}
+
+struct SpectrumSubscriber {
+    std::uint64_t cursor = 0;
+};
+struct SpectrumTextFrame {
+    std::string               payload;
+    [[nodiscard]] std::string json() const { return payload; }
+};
+
 template<typename T>
 class DataSetWindow {
 public:
+    void reset() {
+        std::lock_guard lock(_mutex);
+        _latest   = {};
+        _has_data = false;
+        _cursor   = 0;
+    }
+
+    std::shared_ptr<SpectrumSubscriber> subscribe() { return std::make_shared<SpectrumSubscriber>(); }
+
+    // One retained dataset, one in-flight frame per client. Slow viewers skip old
+    // updates.
+    std::shared_ptr<SpectrumTextFrame> take(const std::shared_ptr<SpectrumSubscriber>& subscriber, bool& failed) const {
+        failed = false;
+        DataSetWindow<T> snapshot;
+        {
+            std::lock_guard lock(_mutex);
+            if (!_has_data || subscriber->cursor == _cursor) {
+                return {};
+            }
+            snapshot._latest       = _latest;
+            snapshot._has_data     = true;
+            snapshot._signal_index = _signal_index;
+            snapshot._axis_index   = _axis_index;
+            snapshot._window_size  = _window_size;
+            subscriber->cursor     = _cursor;
+        }
+        try {
+            return std::make_shared<SpectrumTextFrame>(SpectrumTextFrame{snapshot.snapshotJson(false)});
+        } catch (const gr::exception&) {
+            failed = true;
+            return {};
+        }
+    }
+
     void configure(std::size_t signal_index, std::size_t axis_index, std::int64_t window_size) {
         if (window_size != -1 && window_size < 1) {
             throw gr::exception("StudioDataSetSink window_size must be -1 (all "
@@ -192,29 +297,30 @@ public:
         std::lock_guard lock(_mutex);
         _latest = input.back();
         _has_data = true;
+        ++_cursor;
     }
 
-    [[nodiscard]] std::string snapshotJson() const {
-        std::size_t signal_index = 0UZ;
-        std::size_t axis_index = 0UZ;
+    [[nodiscard]] std::string snapshotJson(bool allow_index_axis = true) const {
+        std::size_t  signal_index = 0UZ;
+        std::size_t  axis_index   = 0UZ;
         std::int64_t window_size  = -1;
-        DataSet<T> copy;
-        bool has_data = false;
+        DataSet<T>   copy;
+        bool         has_data = false;
         {
             std::lock_guard lock(_mutex);
             signal_index = _signal_index;
-            axis_index = _axis_index;
-            window_size = _window_size;
-            copy = _latest;
-            has_data = _has_data;
+            axis_index   = _axis_index;
+            window_size  = _window_size;
+            copy         = _latest;
+            has_data     = _has_data;
         }
 
         std::vector<T> x_values;
         std::vector<T> y_values;
-        std::string signal_name;
-        std::string signal_unit;
-        std::string axis_name;
-        std::string axis_unit;
+        std::string    signal_name;
+        std::string    signal_unit;
+        std::string    axis_name;
+        std::string    axis_unit;
 
         if (has_data) {
             try {
@@ -231,7 +337,7 @@ public:
                 x_values.clear();
             }
 
-            if (x_values.empty()) {
+            if (x_values.empty() && allow_index_axis) {
                 x_values.resize(y_values.size());
                 for (std::size_t i = 0UZ; i < x_values.size(); ++i) {
                     x_values[i] = static_cast<T>(i);
@@ -261,10 +367,15 @@ public:
             return R"({"payload_format":"dataset-xy-json-v1","layout":"pairs_xy","points":0,"data":[]})";
         }
 
+        if (std::any_of(x_values.begin(), x_values.end(), [](T x) { return !std::isfinite(x); })) {
+            throw gr::exception("StudioDataSetSink requires finite axis coordinates.");
+        }
+
         const std::size_t  clipped = window_size == -1 ? n : std::min(n, static_cast<std::size_t>(window_size));
-        const std::size_t begin = n - clipped;
+        const std::size_t  begin   = n - clipped;
         std::ostringstream os;
-        os.precision(9);
+        os.imbue(std::locale::classic());
+        os.precision(std::numeric_limits<T>::max_digits10);
         os << "{\"payload_format\":\"dataset-xy-json-v1\",";
         os << "\"layout\":\"pairs_xy\",";
         os << "\"points\":" << clipped << ",";
@@ -280,13 +391,32 @@ public:
         if (!axis_unit.empty()) {
             os << "\"axis_unit\":\"" << escapeJson(axis_unit) << "\",";
         }
+        if (copy.timestamp != 0) {
+            os << "\"timestamp_unix_ns\":\"" << copy.timestamp << "\",";
+        }
+        if (signal_index < copy.signal_quantities.size()) {
+            os << "\"signal_quantity\":\"" << escapeJson(copy.signal_quantities[signal_index]) << "\",";
+        }
+        if (signal_index < copy.meta_information.size()) {
+            os << "\"metadata\":";
+            spectrumMetadataJson(os, gr::pmt::Value(copy.meta_information[signal_index]));
+            os << ',';
+        }
         os << "\"data\":[";
         for (std::size_t i = 0UZ; i < clipped; ++i) {
             if (i > 0UZ) {
                 os << ',';
             }
             const std::size_t idx = begin + i;
-            os << '[' << x_values[idx] << ',' << y_values[idx] << ']';
+            os << '[' << x_values[idx] << ',';
+            // Nonfinite power is unavailable, never a fabricated finite
+            // measurement.
+            if (std::isfinite(y_values[idx])) {
+                os << y_values[idx];
+            } else {
+                os << "null";
+            }
+            os << ']';
         }
         os << "]}";
         return os.str();
@@ -296,6 +426,7 @@ private:
     mutable std::mutex _mutex;
     DataSet<T>         _latest{};
     bool               _has_data = false;
+    std::uint64_t      _cursor       = 0;
     std::size_t        _signal_index = 0UZ;
     std::size_t        _axis_index = 0UZ;
     std::int64_t       _window_size  = -1;
@@ -311,9 +442,17 @@ struct StudioDataSetSink : Block<StudioDataSetSink<T>> {
 
     PortIn<DataSet<T>> in;
 
-    Annotated<std::string, "transport", Doc<"Data-plane transport mode">, Visible> transport = "http_poll";
+    Annotated<std::string, "transport",
+        Doc<"Data-plane transport: http_snapshot, http_poll or native "
+            "websocket">,
+        Visible>
+                                                                                    transport = "http_poll";
     Annotated<std::string, "endpoint", Doc<"Transport endpoint URL/path">, Visible> endpoint = "http://127.0.0.1:18084/snapshot";
-    Annotated<std::uint32_t, "poll_ms", Doc<"Suggested poll interval in milliseconds for poll transports">, Visible> poll_ms = 250U;
+    Annotated<std::uint32_t, "poll_ms",
+        Doc<"HTTP polling hint and WebSocket update check interval in "
+            "milliseconds">,
+        Visible>
+        poll_ms = 250U;
     Annotated<std::int64_t, "window_size",
         Doc<"Maximum XY points in snapshot; -1 includes the complete "
             "latest DataSet">,
@@ -328,17 +467,29 @@ struct StudioDataSetSink : Block<StudioDataSetSink<T>> {
     Annotated<float, "y_max", Doc<"Optional y-axis maximum when autoscale is disabled">, Visible> y_max = 0.0F;
     Annotated<std::string, "topic", Doc<"Optional stream topic for pub/sub transports">, Visible> topic = "";
 
-    GR_MAKE_REFLECTABLE(StudioDataSetSink, in, transport, endpoint, poll_ms, window_size, signal_index, axis_index, autoscale, x_min, x_max, y_min, y_max, topic);
+    Annotated<gr::Size_t, "max_clients", Doc<"Maximum concurrent WebSocket viewers">>        max_clients        = 8;
+    Annotated<gr::Size_t, "max_snapshot_bytes", Doc<"Maximum encoded WebSocket frame size">> max_snapshot_bytes = 128 * 1024 * 1024;
+    std::uint64_t                                                                            accepted_items     = 0;
+
+    GR_MAKE_REFLECTABLE(StudioDataSetSink, in, transport, endpoint, poll_ms, window_size, signal_index, axis_index, autoscale, x_min, x_max, y_min, y_max, topic, max_clients, max_snapshot_bytes, accepted_items);
 
     using Block<StudioDataSetSink<T>>::Block;
 
     void start() {
+        accepted_items = 0;
+        _window.reset();
         _window.configure(static_cast<std::size_t>(signal_index), static_cast<std::size_t>(axis_index), window_size.value);
         startTransport();
+        _running = true;
     }
 
     void stop() {
+        _running = false;
         _http.stop();
+#if !defined(__EMSCRIPTEN__)
+        _websocket.stop();
+#endif
+        this->updateActiveParameters({"accepted_items"});
     }
 
     void settingsChanged(const property_map&, const property_map& new_settings) {
@@ -346,30 +497,55 @@ struct StudioDataSetSink : Block<StudioDataSetSink<T>> {
             _window.configure(static_cast<std::size_t>(signal_index), static_cast<std::size_t>(axis_index), window_size.value);
         }
 
-        if (new_settings.contains("transport") || new_settings.contains("endpoint")) {
+        if (_running && (new_settings.contains("transport") || new_settings.contains("endpoint") || new_settings.contains("poll_ms") || new_settings.contains("max_clients") || new_settings.contains("max_snapshot_bytes"))) {
             startTransport();
         }
     }
 
     [[nodiscard]] work::Status processBulk(std::span<const DataSet<T>>& input) noexcept {
         _window.push(input);
+        accepted_items += input.size();
+        this->updateActiveParameters({"accepted_items"});
         return work::Status::OK;
     }
 
 private:
     void startTransport() {
-        if (!detail::isHttpTransport(transport.value)) {
-            throw gr::exception("StudioDataSetSink currently supports only http_snapshot and http_poll transports.");
+        if (!detail::isHttpTransport(transport.value) && transport.value != "websocket") {
+            throw gr::exception("StudioDataSetSink supports http_snapshot, "
+                                "http_poll and websocket transports.");
         }
-
+        if (transport.value == "websocket" && !endpoint.value.starts_with("ws://")) {
+            throw gr::exception("StudioDataSetSink websocket requires a ws:// endpoint.");
+        }
+        _http.stop();
+#if !defined(__EMSCRIPTEN__)
+        _websocket.stop();
+        if (transport.value == "websocket") {
+            if (max_clients == 0 || max_snapshot_bytes == 0) {
+                throw gr::exception("WebSocket limits must be positive.");
+            }
+            const auto parsed = detail::parseHttpEndpoint(endpoint.value);
+            _websocket.start(_window, parsed.host, parsed.port, parsed.path, poll_ms, max_clients, max_snapshot_bytes);
+            return;
+        }
+#else
+        if (transport.value == "websocket") {
+            throw gr::exception("Native dataset WebSocket transport is unavailable in WASM.");
+        }
+#endif
         const auto parsed = detail::parseHttpEndpoint(endpoint.value);
         if (!_http.start(parsed, [this]() { return _window.snapshotJson(); })) {
             throw gr::exception("StudioDataSetSink failed to start HTTP transport endpoint.");
         }
     }
 
+    bool                        _running = false;
     detail::DataSetWindow<T>   _window{};
     detail::SnapshotHttpService _http{};
+#if !defined(__EMSCRIPTEN__)
+    dataset_waterfall::BasicWebSocketService<detail::DataSetWindow<T>, detail::SpectrumSubscriber> _websocket;
+#endif
 };
 
 } // namespace gr::studio

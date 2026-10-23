@@ -202,6 +202,11 @@ Expected payload fields:
 Semantics:
 
 - `StudioDataSetSink.window_size` defaults to `-1`, which publishes every point of the latest DataSet. A positive value publishes the last N points; zero and values below -1 are invalid. The sink retains the latest DataSet, without accumulating history.
+- `StudioDataSetSink` supports `transport=http_poll` (default), `http_snapshot`, and native `websocket`. Existing HTTP graphs keep their settings. For managed execution, author `transport: websocket` and `payload_format: dataset-xy-json-v1`; Control Plane injects the allocated `ws://` endpoint and advertises the session-scoped `/sessions/{id}/streams/{stream}/ws` path. No listener port belongs in a managed graph.
+- WebSocket text frames reuse the HTTP XY serializer. Actual dataset coordinates and units are retained with round-trip numeric precision. Optional `signal_quantity`, `metadata` (selected signal's native metadata), and `timestamp_unix_ns` extend both transports without changing the format identifier. UTC nanoseconds and metadata integers are decimal strings to preserve 64-bit values in JavaScript. Timestamp zero is omitted; it is never replaced with host time. Metadata maps/arrays, strings, booleans, real numbers and integers are represented in JSON; nonfinite real values and non-JSON PMT types map to `null`.
+- WebSocket requires explicit dataset coordinates: a missing axis produces an empty XY frame. HTTP retains its legacy index-axis fallback. No FFT, interpolation, averaging, power conversion or RF processing occurs in this sink.
+- `poll_ms` also controls the WebSocket update check interval (minimum 1 ms). The native service is shared with dataset waterfall, with `max_clients=8` and `max_snapshot_bytes=134217728` defaults. One latest dataset is retained, with one in-flight frame per client; intermediate visualization updates may be skipped. Serialization and asynchronous writes run on the transport executor. Acquisition never waits for a browser to consume frames.
+- A client attaching or reconnecting while the listener is active receives the latest dataset, if available. Normal finite completion drains the latest update to attached clients and closes normally, bounded by the shared two-second drain deadline. The listener closes at completion/stop; there is no post-completion replay or guaranteed delivery of all updates. Attach before a short finite source emits data where possible. Every start clears the retained dataset; managed descriptors and bindings belong to the session/execution.
 - DataSet semantics remain sink/runtime-side.
 - Payload normalizes to one XY trace for plotting.
 - `StudioPowerSpectrumSink` uses this contract to publish FFT frequency bins against averaged power values.
@@ -347,3 +352,40 @@ Manual validation path:
 6. To verify manual color scaling, set `autoscale=false` and adjust `z_min` / `z_max` on the sink, then confirm the waterfall colors change on the next poll.
 7. To verify fixed history depth, adjust `time_span` on the sink together with `sample_rate` and confirm the waterfall keeps a fixed row count quantized to the FFT size.
 8. Use the TS fixtures above to inspect the exact payload shape and error cases outside the runtime path if needed.
+
+
+## Producer-owned annotation and table policy
+
+Application sources own acquisition identity, detector/association behavior,
+state transitions, labels, geometry, table columns and values. Studio does not
+interpret instrument metadata or application lifecycle names. Arbitrary state
+strings are display data; a cell or style state named `CLOSED` has no retention
+meaning.
+
+An annotation may set `style.terminal` (SigMF carrier: `gr4:style.terminal`).
+A `table-updates-json-v1` row may set an optional boolean `terminal` alongside
+`row_id`, `revision`, `annotation_id` and `values`. Missing flags mean false.
+Stores prefer explicitly terminal entries for eviction under retention pressure;
+this is a storage hint, not a delete, closure inference or synthesized update.
+The flag is preserved in snapshots and upserts and does not add a table column.
+
+Observation annotations refer to explicit run, source epoch, source,
+acquisition and sequence identities. These are protocol independent. Producers
+adapt their own metadata into `gr4:observation`, `gr4:annotations`, SigMF annotation
+content or typed table rows. Control Plane treats block settings and stream
+payloads generically; Studio renders the published contracts. Neither consumer
+requires a particular acquisition protocol, detector or region schema.
+
+### Nullable DataSet power
+
+`dataset-xy-json-v1` DataSet sinks preserve finite numeric coordinates and emit
+`null` for nonfinite power (NaN or either infinity). Null means unavailable power,
+never zero; consumers must break lines at these bins. Invalid nonfinite coordinates
+are rejected (HTTP failure / WebSocket failed subscription), not converted to null.
+Finite payloads, metadata, units and timestamps are unchanged. HTTP and WebSocket
+share this serializer. Waterfall payloads are unchanged.
+
+This clarifies the DataSet wire representation; older Studio vector parsers require
+numeric pairs and reject nullable frames. Consumers must explicitly support nullable power;
+older consumers need nullable handling before displaying sparse spectra. No change
+to the separate `series2d-xy-json-v1` contract is implied.

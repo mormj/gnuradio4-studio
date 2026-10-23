@@ -57,11 +57,20 @@ file(GLOB GR4_STUDIO_HEADERS CONFIGURE_DEPENDS
 
 # StudioWasmTransport.hpp holds no blocks so the registration parser output would be empty
 list(REMOVE_ITEM GR4_STUDIO_HEADERS
-  "${CMAKE_CURRENT_SOURCE_DIR}/include/gnuradio-4.0/studio/StudioWasmTransport.hpp")
+  "${CMAKE_CURRENT_SOURCE_DIR}/include/gnuradio-4.0/studio/StudioWasmTransport.hpp"
+  "${CMAKE_CURRENT_SOURCE_DIR}/include/gnuradio-4.0/studio/StudioDataSetWaterfallStore.hpp"
+  "${CMAKE_CURRENT_SOURCE_DIR}/include/gnuradio-4.0/studio/StudioIncrementalWebSocket.hpp"
+  "${CMAKE_CURRENT_SOURCE_DIR}/include/gnuradio-4.0/studio/StudioAnnotationStore.hpp"
+  "${CMAKE_CURRENT_SOURCE_DIR}/include/gnuradio-4.0/studio/StudioTableStore.hpp")
 
 if(EMSCRIPTEN)
+  list(REMOVE_ITEM GR4_STUDIO_HEADERS "${CMAKE_CURRENT_SOURCE_DIR}/include/gnuradio-4.0/studio/StudioTableSink.hpp" "${CMAKE_CURRENT_SOURCE_DIR}/include/gnuradio-4.0/studio/StudioSyntheticTableSource.hpp")
   list(REMOVE_ITEM GR4_STUDIO_HEADERS
-    "${CMAKE_CURRENT_SOURCE_DIR}/include/gnuradio-4.0/studio/StudioAudioSink.hpp")
+    "${CMAKE_CURRENT_SOURCE_DIR}/include/gnuradio-4.0/studio/StudioSyntheticSpectrumSource.hpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/include/gnuradio-4.0/studio/StudioSyntheticAnnotationSource.hpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/include/gnuradio-4.0/studio/StudioAnnotationSink.hpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/include/gnuradio-4.0/studio/StudioAudioSink.hpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/include/gnuradio-4.0/studio/StudioDataSetWaterfallSink.hpp")
   set(GR4_STUDIO_EXTRA_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/src/StudioWasmBindings.cpp")
 else()
   set(GR4_STUDIO_EXTRA_SOURCES "")
