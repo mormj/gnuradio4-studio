@@ -1,3 +1,4 @@
+import { TableLiveRenderer } from './table-live-renderer';
 import type { ReactElement } from 'react';
 import type { StudioPanelKind } from '../../graph-document/model/studio-workspace';
 import type { WorkspaceLiveRendererContext } from './live-renderer-contract';
@@ -66,6 +67,7 @@ const RENDERER_BY_KIND = {
   series2d: Series2DPlaceholderRenderer,
   histogram: PhosphorSpectrumLiveRenderer,
   waterfall: WaterfallLiveRenderer,
+  table: TableLiveRenderer,
   image: ImagePlaceholderRenderer,
   audio: AudioLiveRenderer,
   scalar: ScalarLiveRenderer,

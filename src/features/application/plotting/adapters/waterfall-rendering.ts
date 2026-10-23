@@ -103,7 +103,7 @@ function toNumberArray(values: number[] | Float32Array | Float64Array | Uint8Arr
 export function buildWaterfallRaster(image: PlotImageFrame): WaterfallRaster {
   const width = Math.max(0, Math.floor(image.width));
   const height = Math.max(0, Math.floor(image.height));
-  const values = toNumberArray(image.values);
+  const values = image.observationAxis ? image.values : toNumberArray(image.values);
   if (width === 0 || height === 0 || values.length === 0) {
     return {
       width,
@@ -118,18 +118,27 @@ export function buildWaterfallRaster(image: PlotImageFrame): WaterfallRaster {
     throw new Error(`Waterfall raster shape mismatch: width=${width}, height=${height}, values=${values.length}`);
   }
 
+  let measuredMin = Number.POSITIVE_INFINITY;
+  let measuredMax = Number.NEGATIVE_INFINITY;
+  for (let i = 0; i < values.length; i++) {
+    measuredMin = Math.min(measuredMin, values[i]);
+    measuredMax = Math.max(measuredMax, values[i]);
+  }
   const minValue = Number.isFinite(image.minValue as number)
     ? (image.minValue as number)
-    : values.reduce((min, value) => Math.min(min, value), Number.POSITIVE_INFINITY);
+    : measuredMin;
   const maxValue = Number.isFinite(image.maxValue as number)
     ? (image.maxValue as number)
-    : values.reduce((max, value) => Math.max(max, value), Number.NEGATIVE_INFINITY);
+    : measuredMax;
   const resolvedMin = Number.isFinite(minValue) ? minValue : 0;
   const resolvedMax = Number.isFinite(maxValue) ? maxValue : 1;
 
   const pixels = new Uint8ClampedArray(width * height * 4);
+  // Reuse the existing colormap with a bounded lookup table for complete dataset matrices.
+  const lookup = image.observationAxis ? Array.from({ length: 256 }, (_, i) => sampleWaterfallColor(i, 0, 255, image.colorMap)) : undefined;
   for (let index = 0; index < values.length; index += 1) {
-    const [r, g, b] = sampleWaterfallColor(values[index], resolvedMin, resolvedMax, image.colorMap);
+    const colorIndex = resolvedMax > resolvedMin ? Math.round(clamp01((values[index] - resolvedMin) / (resolvedMax - resolvedMin)) * 255) : 128;
+    const [r, g, b] = lookup ? lookup[colorIndex] : sampleWaterfallColor(values[index], resolvedMin, resolvedMax, image.colorMap);
     const offset = index * 4;
     pixels[offset] = r;
     pixels[offset + 1] = g;

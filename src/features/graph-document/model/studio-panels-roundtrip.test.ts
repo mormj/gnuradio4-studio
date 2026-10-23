@@ -15,6 +15,7 @@ describe('studio panel metadata round-trip', () => {
             nodeId: 'node-1',
             kind: 'series' as const,
             title: 'Series',
+            annotationSources: [{ sinkId: 'annotations0', payloadFormat: 'plot-annotations-json-v1' as const }],
             visible: true,
             previewOnCanvas: false,
             plotStyle: {

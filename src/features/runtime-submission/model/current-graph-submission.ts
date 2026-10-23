@@ -5,6 +5,7 @@ import type { BlockDetails } from '../../../lib/api/block-details';
 import { toGrctrlContentSubmission } from './toGrctrlPayload';
 import type { GrcExport } from './types';
 export type BuildCurrentGraphSubmissionOptions = {
+  executionNamespace?: string;
   blockDetailsByType?: ReadonlyMap<string, BlockDetails>;
 };
 
@@ -14,7 +15,7 @@ export function buildCurrentSessionGraphSubmission(
 ): GrcExport {
   return toGrctrlContentSubmission(
     document,
-    options?.blockDetailsByType ? { blockDetailsByType: options.blockDetailsByType } : undefined,
+    options,
   );
 }
 

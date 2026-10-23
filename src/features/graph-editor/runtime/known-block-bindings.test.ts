@@ -25,18 +25,24 @@ describe('known Studio block bindings', () => {
     }, {});
 
     expect(counts).toEqual({
+      annotation: 1,
       audio: 2,
       image: 3,
       scalar: 2,
       series: 4,
       series2d: 12,
       status: 2,
-      waterfall: 4,
+      waterfall: 5,
+      table: 1,
     });
   });
 
   it('uses a consistent phase-1 transport contract across all known blocks', () => {
     for (const binding of STUDIO_KNOWN_BLOCK_BINDINGS) {
+      if (binding.blockTypeId === 'gr::studio::StudioDataSetWaterfallSink<float64>' || binding.blockTypeId === 'gr::studio::StudioAnnotationSink<float64>') {
+        expect(binding.supportedTransports).toEqual(['websocket']);
+        continue;
+      }
       if (binding.blockTypeId.startsWith('gr::studio::StudioSeriesSink<')) {
         expect(binding.supportedTransports).toEqual([
           'http_snapshot',
@@ -76,7 +82,7 @@ describe('known Studio block bindings', () => {
         continue;
       }
 
-      if (binding.blockTypeId.startsWith('gr::studio::StudioAudioSink<')) {
+      if (binding.blockTypeId.startsWith('gr::studio::StudioAudioSink<') || binding.blockTypeId === 'gr::studio::StudioTableSink<float64>') {
         expect(binding.supportedTransports).toEqual(['websocket']);
         continue;
       }

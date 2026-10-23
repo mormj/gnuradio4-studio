@@ -102,8 +102,10 @@ const studioControlWidgetSpecSchema: z.ZodType<StudioControlWidgetSpec> = z.obje
 
 const studioDataPanelSpecSchema: z.ZodType<StudioDataPanelSpec> = z.object({
   id: z.string().min(1),
+  tableVisibleColumns: z.array(z.string().min(1).max(512)).max(64).optional(),
+  annotationSources: z.array(z.object({ sinkId: z.string().min(1), payloadFormat: z.literal('plot-annotations-json-v1').optional() }).strict()).max(8).optional(),
   nodeId: z.string().min(1),
-  kind: z.enum(['series', 'series2d', 'histogram', 'waterfall', 'image', 'audio', 'scalar', 'status']),
+  kind: z.enum(['series', 'series2d', 'histogram', 'waterfall', 'table', 'image', 'audio', 'scalar', 'status']),
   title: z.string().optional(),
   visible: z.boolean(),
   previewOnCanvas: z.boolean(),

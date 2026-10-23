@@ -1,4 +1,4 @@
-export type StudioBindingFamily = 'series' | 'series2d' | 'histogram' | 'waterfall' | 'audio' | 'image' | 'scalar' | 'status';
+export type StudioBindingFamily = 'table' | 'annotation' | 'series' | 'series2d' | 'histogram' | 'waterfall' | 'audio' | 'image' | 'scalar' | 'status';
 
 export type StudioTransportMode = 'http_snapshot' | 'http_poll' | 'zmq_sub' | 'websocket';
 export const STUDIO_PHASE1_SUPPORTED_TRANSPORTS = ['http_snapshot', 'http_poll'] as const;
@@ -82,6 +82,14 @@ const STUDIO_WATERFALL_SUPPORTED_TRANSPORTS = ['http_poll', 'websocket'] as cons
 const STUDIO_AUDIO_PLAYBACK_SUPPORTED_TRANSPORTS = ['websocket'] as const;
 const STUDIO_SCALAR_STATUS_SUPPORTED_TRANSPORTS = ['http_poll', 'websocket'] as const;
 export const STUDIO_KNOWN_BLOCK_BINDINGS: readonly StudioKnownBlockBinding[] = [
+  { blockTypeId: 'gr::studio::StudioTableSink<float64>', family: 'table', supportedTransports: ['websocket'], parameters: { transport: 'transport', endpoint: 'endpoint', updateMs: 'update_ms' }, payloadFormat: 'table-updates-json-v1' },
+  { blockTypeId: 'gr::studio::StudioAnnotationSink<float64>', family: 'annotation', supportedTransports: ['websocket'], parameters: { transport: 'transport', endpoint: 'endpoint', updateMs: 'update_ms' }, payloadFormat: 'plot-annotations-json-v1' },
+  {
+    blockTypeId: 'gr::studio::StudioDataSetWaterfallSink<float64>',
+    family: 'waterfall', supportedTransports: ['websocket'],
+    parameters: { transport: 'transport', endpoint: 'endpoint', updateMs: 'update_ms' },
+    payloadFormat: 'dataset-waterfall-json-v1',
+  },
   {
     blockTypeId: 'gr::studio::StudioSeriesSink<float32>',
     family: 'series',

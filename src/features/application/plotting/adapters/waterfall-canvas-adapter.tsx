@@ -1,3 +1,7 @@
+import { AnnotationOverlay } from '../runtime/annotation-overlay';
+import { visibleAnnotationBoxes } from '../runtime/annotation-projection';
+import { frequencyToPixel } from './waterfall-coordinates';
+import { fullWaterfallViewport, moveWaterfallViewport, pixelToFrequency, frequencyColumn, pixelToObservation, type WaterfallViewport } from './waterfall-coordinates';
 import { useEffect, useMemo, useRef, useState, type PointerEvent } from 'react';
 import type { PlotAdapterProps } from '../model/types';
 import type { WaterfallRaster } from './waterfall-rendering';
@@ -47,11 +51,12 @@ export function calculateWaterfallCanvasDimensions(params: {
 
 export function resolveWaterfallHoverSample(params: {
   raster: WaterfallRaster | null;
-  sourceValues: readonly number[];
+  sourceValues: ArrayLike<number>;
   frequencyBins?: readonly number[];
   rect: { width: number; height: number };
   clientX: number;
   clientY: number;
+  viewport?: WaterfallViewport;
 }): HoverSample | null {
   const { raster, sourceValues, frequencyBins, rect, clientX, clientY } = params;
   if (!raster || raster.width === 0 || raster.height === 0 || sourceValues.length === 0) {
@@ -65,24 +70,31 @@ export function resolveWaterfallHoverSample(params: {
   const localY = Math.max(0, Math.min(rect.height, clientY));
   const column = Math.min(raster.width - 1, Math.max(0, Math.floor((localX / rect.width) * raster.width)));
   const row = Math.min(raster.height - 1, Math.max(0, Math.floor((localY / rect.height) * raster.height)));
-  const value = sourceValues[row * raster.width + column] ?? Number.NaN;
+  const view = params.viewport;
+  const physicalColumn = view && frequencyBins ? frequencyColumn(pixelToFrequency(localX, frequencyBins, rect.width, view), frequencyBins) : column;
+  const physicalRow = view ? pixelToObservation(localY, raster.height, rect.height, view) : row;
+  const value = sourceValues[physicalRow * raster.width + physicalColumn] ?? Number.NaN;
   return {
-    row,
-    column,
-    frequency: frequencyBins?.[column],
+    row: physicalRow,
+    column: physicalColumn,
+    frequency: frequencyBins?.[physicalColumn],
     value,
   };
 }
 
-export function WaterfallCanvasAdapter({ spec, frame, width, height }: PlotAdapterProps) {
+export function WaterfallCanvasAdapter({ spec, frame, width, height, viewResetKey }: PlotAdapterProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const offscreenRef = useRef<HTMLCanvasElement | null>(null);
+  const lastPointer = useRef<{ x: number; y: number; width: number; height: number } | null>(null);
   const [hover, setHover] = useState<HoverSample | null>(null);
 
+  const [viewport, setViewport] = useState(fullWaterfallViewport);
+  const drag = useRef<{ x: number; y: number } | null>(null);
   const image = frame.image;
+  useEffect(() => { setViewport(fullWaterfallViewport); }, [image?.streamEpoch, viewResetKey]);
   const raster = useMemo(() => (image ? buildWaterfallRaster(image) : null), [image]);
   const sourceValues = useMemo(
-    () => (image ? toNumberArray(image.values) : []),
+    () => (image ? (image.observationAxis ? image.values : toNumberArray(image.values)) : []),
     [image],
   );
   const frequencyBins = useMemo(
@@ -132,25 +144,37 @@ export function WaterfallCanvasAdapter({ spec, frame, width, height }: PlotAdapt
         const imageData = sourceContext.createImageData(raster.width, raster.height);
         imageData.data.set(raster.pixels);
         sourceContext.putImageData(imageData, 0, 0);
-        context.imageSmoothingEnabled = true;
+        context.imageSmoothingEnabled = !image?.observationAxis;
         context.imageSmoothingQuality = 'high';
-        context.drawImage(sourceCanvas, 0, 0, width, height);
+        if (image?.observationAxis) {
+          context.drawImage(sourceCanvas, viewport.left * raster.width, viewport.top * raster.height,
+            (viewport.right - viewport.left) * raster.width, (viewport.bottom - viewport.top) * raster.height, 0, 0, width, height);
+        } else context.drawImage(sourceCanvas, 0, 0, width, height);
       }
     }
 
     context.restore();
-  }, [height, raster, width]);
+  }, [height, raster, width, viewport, image?.observationAxis]);
 
   useEffect(() => {
-    setHover(null);
-  }, [frame.meta?.sequence, image]);
+    if (!image?.observationAxis) { setHover(null); return; }
+    const p = lastPointer.current;
+    if (p) setHover(resolveWaterfallHoverSample({ raster, sourceValues, frequencyBins, rect: p, clientX: p.x, clientY: p.y, viewport }));
+  }, [frame.meta?.sequence, image, raster, sourceValues, frequencyBins, viewport]);
 
-  const onPointerMove = (event: PointerEvent<HTMLCanvasElement>) => {
+  const onPointerMove = (event: PointerEvent<HTMLDivElement>) => {
     const rect = event.currentTarget.getBoundingClientRect();
+    if (drag.current && image?.observationAxis) {
+      const previous = drag.current;
+      setViewport(v => moveWaterfallViewport(v, -(event.clientX - previous.x) / rect.width * (v.right - v.left), -(event.clientY - previous.y) / rect.height * (v.bottom - v.top)));
+      drag.current = { x: event.clientX, y: event.clientY };
+    }
+    lastPointer.current = { x: event.clientX - rect.left, y: event.clientY - rect.top, width: rect.width, height: rect.height };
     const next = resolveWaterfallHoverSample({
       raster,
       sourceValues,
       frequencyBins,
+      viewport: image?.observationAxis ? viewport : undefined,
       rect: {
         width: rect.width,
         height: rect.height,
@@ -162,6 +186,7 @@ export function WaterfallCanvasAdapter({ spec, frame, width, height }: PlotAdapt
   };
 
   const onPointerLeave = () => {
+    lastPointer.current = null;
     setHover(null);
   };
 
@@ -169,24 +194,46 @@ export function WaterfallCanvasAdapter({ spec, frame, width, height }: PlotAdapt
   const maxValue = image?.maxValue ?? raster?.maxValue;
 
   return (
-    <div className="relative h-full w-full overflow-hidden rounded border border-slate-800 bg-slate-950 shadow-[inset_0_0_0_1px_rgba(15,23,42,0.65)]">
+    <div data-waterfall-rows={image?.height} data-waterfall-last-sequence={image?.rowKeys?.[0]?.sequence} className="relative h-full w-full overflow-hidden rounded border border-slate-800 bg-slate-950 shadow-[inset_0_0_0_1px_rgba(15,23,42,0.65)]"
+        onPointerMove={onPointerMove}
+        onPointerLeave={onPointerLeave}
+        onDoubleClick={() => setViewport(fullWaterfallViewport)}
+        onWheel={event => { if (image?.observationAxis) { event.preventDefault(); setViewport(v => moveWaterfallViewport(v, 0, 0, event.deltaY > 0 ? 1.2 : 1 / 1.2)); } }}
+        onPointerDown={event => { if (image?.observationAxis) { drag.current = { x: event.clientX, y: event.clientY }; event.currentTarget.setPointerCapture(event.pointerId); } }}
+        onPointerUp={() => { drag.current = null; }}
+    >
       <canvas
         ref={canvasRef}
         className="block h-full w-full"
-        onPointerMove={onPointerMove}
-        onPointerLeave={onPointerLeave}
+
       />
 
-      <div className="pointer-events-none absolute left-3 top-3 rounded-md border border-slate-700/80 bg-slate-950/80 px-2 py-1 shadow-lg backdrop-blur">
+      {image?.observationAxis && frequencyBins ? <AnnotationOverlay items={frame.annotations} retained={frame.annotations?.length ?? 0} boxes={visibleAnnotationBoxes(frame.annotations ?? [], width, height, hz => frequencyToPixel(hz, frequencyBins, width, viewport), image.rowKeys, row => (row / image.height - viewport.top) / (viewport.bottom - viewport.top) * height)} /> : null}
+      <details data-waterfall-info open={image?.observationAxis ? undefined : true} className="pointer-events-none absolute left-3 top-3 rounded-md border border-slate-700/80 bg-slate-950/80 px-2 py-1 shadow-lg backdrop-blur">
+        {image?.observationAxis ? <summary className="pointer-events-auto cursor-pointer text-[10px] text-slate-300" onPointerDown={event => event.stopPropagation()}>Info</summary> : null}
         <div className="text-[10px] font-semibold uppercase tracking-wide text-slate-300">{signalLabel}</div>
         <div className="mt-1 text-[10px] text-slate-400">
           {raster ? `${raster.height} rows × ${raster.width} bins` : 'No waterfall data'}
         </div>
+        {image?.observationAxis ? <>
+          {image.rowDiscontinuities?.some(reasons => reasons.length > 0) ? <div className="text-[10px] text-amber-300">Partition resets / sequence gaps: {image.rowDiscontinuities.filter(reasons => reasons.length > 0).length} retained rows (hover for reasons)</div> : null}
+          <div className="text-[10px] text-slate-300">Observation sequence: {image.rowKeys?.[Math.floor(viewport.top * image.height)]?.sequence ?? 'empty'} → {image.rowKeys?.[Math.min(image.height - 1, Math.ceil(viewport.bottom * image.height) - 1)]?.sequence ?? 'empty'}</div>
+          <div className="text-[10px] text-slate-400">{frequencyBins?.length ? `${frequencyBins[0]} … ${frequencyBins[frequencyBins.length - 1]} Hz` : ''}</div>
+          {frequencyBins?.length ? <div className="text-[10px] text-slate-500">view {pixelToFrequency(0, frequencyBins, width, viewport)} … {pixelToFrequency(width, frequencyBins, width, viewport)} Hz (midpoint cells)</div> : null}
+          <div className="text-[10px] text-slate-400">evicted {image.evictedRows} · rejected {image.droppedUpdates} · wheel zoom / drag pan / double-click reset</div>
+        </> : null}
         {image?.timeSpan ? (
           <div className="mt-0.5 text-[10px] text-slate-500">span {formatValue(image.timeSpan)} s</div>
         ) : null}
-      </div>
+      </details>
+      {image?.observationAxis ? <div className="pointer-events-none absolute bottom-16 left-3 max-w-sm rounded bg-slate-950/80 text-xs text-amber-400">
+        {image.annotationCapacityEvictions && image.annotationCapacityEvictions !== '0' ? <div role="alert">Annotation capacity exceeded: {image.annotationCapacityEvictions} evictions from retained observation history this execution. Increase annotation_max_bytes or annotation_max_items.</div> : null}
+        {image.streamStatus?.startsWith('Stale') ? <div role="status">{image.streamStatus}</div> : null}
+      </div> : null}
 
+      {image?.observationAxis && frequencyBins?.length ? <div className="pointer-events-none absolute bottom-1 left-2 right-2 flex justify-between text-[10px] text-white [text-shadow:0_1px_3px_black]">
+        {[0, 0.5, 1].map(fraction => <span key={fraction}>{pixelToFrequency(width * fraction, frequencyBins, width, viewport)} Hz</span>)}
+      </div> : null}
       {raster ? (
         <div className="pointer-events-none absolute bottom-3 right-3 flex items-end gap-2 rounded-md border border-slate-700/80 bg-slate-950/80 px-2 py-1 shadow-lg backdrop-blur">
           <div
@@ -219,8 +266,13 @@ export function WaterfallCanvasAdapter({ spec, frame, width, height }: PlotAdapt
           <div className="mt-1 text-slate-300">
             row {hover.row + 1}/{raster?.height ?? 0} · bin {hover.column + 1}/{raster?.width ?? 0}
           </div>
+          {image?.observationAxis ? <div className="text-slate-300">
+            observation {image.rowKeys?.[hover.row]?.sequence}<br />
+            timestamp {image.rowTimestamps?.[hover.row]?.raw_text || 'unknown'} ({image.rowTimestamps?.[hover.row]?.provenance})<br />
+            {image.rowDiscontinuities?.[hover.row]?.join(', ')}
+          </div> : null}
           <div className="text-slate-300">
-            f={formatAxisValue(hover.frequency)} {image?.axisUnit ? image.axisUnit : ''}
+            f={image?.observationAxis ? String(hover.frequency) : formatAxisValue(hover.frequency)} {image?.axisUnit ? image.axisUnit : ''}
           </div>
           <div className="text-slate-300">
             value={formatValue(hover.value)} {image?.signalUnit ? image.signalUnit : ''}

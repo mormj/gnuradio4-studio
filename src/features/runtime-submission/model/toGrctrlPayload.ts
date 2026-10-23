@@ -188,6 +188,7 @@ function renderParameterValue(
 }
 
 type ToGrctrlContentSubmissionOptions = {
+  executionNamespace?: string;
   blockDetailsByType?: ReadonlyMap<string, BlockDetails>;
 };
 
@@ -421,6 +422,7 @@ function serializeGraphDocumentToInlineGrc(
   const nodes = [...runtimeGraph.nodes].sort((left, right) => left.id.localeCompare(right.id));
   const edges = [...runtimeGraph.edges].sort((left, right) => left.id.localeCompare(right.id));
   const blockDetailsByType = options?.blockDetailsByType;
+  const executionNamespace = options?.executionNamespace;
   const resolved = resolveGraphVariables(document);
 
   const lines: string[] = [];
@@ -451,6 +453,9 @@ function serializeGraphDocumentToInlineGrc(
           if (parameter.readOnly || !parameter.mutable || parameter.name === 'name' || parameterEntries.has(parameter.name)) {
             return;
           }
+          // Native synthetic uint64 sequence defaults cannot round-trip through the catalog's JSON numbers.
+          // Omit this default so the native producer keeps its exact compiled value.
+          if (parameter.name === 'first_sequence' && ['gr::studio::SyntheticSpectrumSource', 'gr::studio::SyntheticAnnotationSource'].includes(node.blockType)) return;
           if (parameter.defaultValue === undefined) {
             return;
           }
@@ -472,6 +477,36 @@ function serializeGraphDocumentToInlineGrc(
         });
       }
 
+      const scopeMode = parameterEntries.get('scope_mode');
+      const producerScope = scopeMode?.kind === 'literal' && scopeMode.value === 'producer';
+      // Legacy graphs keep a fresh per-execution scope using the public scope
+      // parameter convention. Producers opting into native identity own it.
+      if (executionNamespace && !producerScope && parameterEntries.has('run_namespace')) {
+        parameterEntries.set('run_namespace', { kind: 'literal', value: executionNamespace });
+        if (parameterEntries.has('source_epoch')) parameterEntries.set('source_epoch', { kind: 'literal', value: executionNamespace });
+      }
+      if (executionNamespace && !producerScope && ['gr::studio::StudioAnnotationSink<float64>', 'gr::studio::SyntheticAnnotationSource', 'gr::studio::StudioTableSink<float64>', 'gr::studio::SyntheticTableSource'].includes(node.blockType)) {
+        parameterEntries.set('run_namespace', { kind: 'literal', value: executionNamespace });
+        if (node.blockType === 'gr::studio::SyntheticAnnotationSource') {
+          parameterEntries.set('source_epoch', { kind: 'literal', value: executionNamespace });
+        }
+        if (['gr::studio::SyntheticAnnotationSource', 'gr::studio::SyntheticTableSource'].includes(node.blockType)) {
+          parameterEntries.set('producer_instance', { kind: 'literal', value: node.id });
+          if (node.blockType === 'gr::studio::SyntheticTableSource' && !parameterEntries.has('annotation_producer')) {
+            const producers = nodes.filter(n => n.blockType === 'gr::studio::SyntheticAnnotationSource');
+            if (producers.length !== 1) throw new Error('Synthetic table requires an explicit annotation_producer when there is no unique annotation producer.');
+            parameterEntries.set('annotation_producer', { kind: 'literal', value: producers[0].id });
+          }
+        } else {
+          const producerType = node.blockType === 'gr::studio::StudioTableSink<float64>' ? 'gr::studio::SyntheticTableSource' : 'gr::studio::SyntheticAnnotationSource';
+          const edge = edges.find(e => e.target.nodeId === node.id && nodes.some(n => n.id === e.source.nodeId && n.blockType === producerType));
+          parameterEntries.set('producer_instance', { kind: 'literal', value: edge?.source.nodeId ?? node.id });
+        }
+      }
+      if (node.blockType === 'gr::studio::StudioDataSetWaterfallSink<float64>' && executionNamespace && !producerScope) {
+        for (const key of ['run_namespace', 'source_epoch']) parameterEntries.set(key, { kind: 'literal', value: executionNamespace });
+        parameterEntries.set('producer_instance', { kind: 'literal', value: node.id });
+      }
       const sortedParameterEntries = [...parameterEntries.entries()].sort(([left], [right]) => left.localeCompare(right));
       if (sortedParameterEntries.length > 0) {
         sortedParameterEntries.forEach(([name, parameter]) => {
@@ -481,7 +516,10 @@ function serializeGraphDocumentToInlineGrc(
 
           const resolvedParameter = resolved.parametersByNodeId[node.id]?.[name];
           const fallbackValue = parameter.kind === 'literal' ? parameter.value : undefined;
-          const parameterValue = resolvedParameter?.state === 'resolved' ? resolvedParameter.value : fallbackValue;
+          const syntheticSequence = name === 'first_sequence' && ['gr::studio::SyntheticSpectrumSource', 'gr::studio::SyntheticAnnotationSource'].includes(node.blockType);
+          const injectedIdentity = executionNamespace && !producerScope && ['run_namespace', 'source_epoch', 'producer_instance'].includes(name);
+          const parameterValue = syntheticSequence || injectedIdentity ? fallbackValue : resolvedParameter?.state === 'resolved' ? resolvedParameter.value : fallbackValue;
+          if (syntheticSequence && !(typeof parameterValue === 'number' && Number.isSafeInteger(parameterValue) && parameterValue >= 0) && !(typeof parameterValue === 'string' && /^(0|[1-9][0-9]{0,19})$/.test(parameterValue) && BigInt(parameterValue) <= 18446744073709551615n)) throw new Error('Synthetic first_sequence requires an exact uint64 decimal string or safe integer.');
           if (shouldOmitParameterForBlock(node.blockType, name, parameterValue)) {
             return;
           }

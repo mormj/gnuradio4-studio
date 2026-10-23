@@ -20,6 +20,7 @@ import {
   stopSession,
 } from '../../../lib/api/sessionsApi';
 import { useRuntimeSessionStore } from './runtimeSessionStore';
+import { buildCurrentSessionGraphSubmission } from '../../runtime-submission/model/current-graph-submission';
 
 function graphDocument(name: string) {
   return {
@@ -537,4 +538,39 @@ describe('runtimeSessionStore (sessions-only model)', () => {
     expect(view.graphSubmissionState).toBe('none');
     expect(view.runIntent).toBe('create-session');
   });
+});
+
+it.each([
+  'gr::studio::StudioDataSetWaterfallSink<float64>',
+  'gr::studio::StudioAnnotationSink<float64>',
+  'gr::studio::StudioTableSink<float64>',
+])('keeps unchanged %s submissions current after Run', async blockType => {
+  vi.clearAllMocks();
+  resetStore();
+  const document = {
+    ...graphDocument('retained'),
+    graph: {
+      nodes: [{ id: 'sink', blockType, position: { x: 0, y: 0 }, parameters: {} }],
+      edges: [],
+    },
+  };
+  const session = {
+    id: 'retained-session', name: 'retained', state: 'running' as const,
+    createdAt: 'now', updatedAt: 'now', lastError: null,
+  };
+  vi.mocked(createSession).mockResolvedValue({ ...session, state: 'stopped' });
+  vi.mocked(startSession).mockResolvedValue(session);
+  vi.mocked(getSession).mockResolvedValue(session);
+  vi.mocked(listSessions).mockResolvedValue([session]);
+  const before = buildCurrentSessionGraphSubmission(document);
+  expect((await useRuntimeSessionStore.getState().runTab('tab-1', document)).ok).toBe(true);
+  const after = buildCurrentSessionGraphSubmission(document);
+  expect(after).toEqual(before);
+  const view = useRuntimeSessionStore.getState().getTabRuntimeView('tab-1', after.content);
+  expect(view.graphDriftState).toBe('in-sync');
+  expect(view.graphSubmissionState).toBe('current');
+  expect(vi.mocked(createSession).mock.calls[0][0].grc).toMatch(/run_namespace: [^\n]+/);
+  document.graph.nodes[0].parameters = { window_size: { kind: 'literal', value: 128 } } as typeof document.graph.nodes[0]['parameters'];
+  const edited = buildCurrentSessionGraphSubmission(document);
+  expect(useRuntimeSessionStore.getState().getTabRuntimeView('tab-1', edited.content).graphDriftState).toBe('out-of-sync');
 });

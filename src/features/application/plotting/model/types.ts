@@ -1,3 +1,5 @@
+type DatasetTimestamp = { unix_ns: string | null; provenance: string; raw_text: string };
+
 export type PlotKind = 'timeseries' | 'fft' | 'waterfall' | 'histogram' | 'scatter';
 
 export type PhosphorSpectrumTuning = {
@@ -52,9 +54,20 @@ export type PlotTagAnnotation = {
 };
 
 export type PlotImageFrame = {
+  annotations?: import('../runtime/annotation-projection').AnnotationOverlayItem[];
   width: number;
   height: number;
-  values: number[] | Float32Array | Uint8Array;
+  values: number[] | Float32Array | Float64Array | Uint8Array;
+  observationAxis?: boolean;
+  streamStatus?: string;
+  rowKeys?: import('../runtime/dataset-waterfall-frame').WaterfallRowKey[];
+  rowTimestamps?: DatasetTimestamp[];
+  rowDiscontinuities?: string[][];
+  streamEpoch?: string;
+  publicationCursor?: string;
+  droppedUpdates?: string;
+  evictedRows?: string;
+  annotationCapacityEvictions?: string;
   xAxis?: number[] | Float64Array;
   minValue?: number;
   maxValue?: number;
@@ -78,6 +91,7 @@ export type PlotAxisMetadata = {
 };
 
 export type PlotDataFrame = {
+  annotations?: import('../runtime/annotation-projection').AnnotationOverlayItem[];
   kind: PlotKind;
   series?: PlotSeriesFrame[];
   image?: PlotImageFrame;
@@ -100,13 +114,14 @@ export type PlotDataFrame = {
 };
 
 export type PlotPanelSpec = {
+  annotationSources?: { sinkId: string; payloadFormat?: 'plot-annotations-json-v1' }[];
   panelId: string;
   kind: PlotKind;
   source: {
     sinkId: string;
     channel?: string;
     field?: string;
-    payloadFormat?: 'series-window-json-v1' | 'series2d-xy-json-v1' | 'dataset-xy-json-v1' | 'waterfall-spectrum-json-v1';
+    payloadFormat?: 'series-window-json-v1' | 'series2d-xy-json-v1' | 'dataset-xy-json-v1' | 'waterfall-spectrum-json-v1' | 'dataset-waterfall-json-v1';
   };
   view: PlotViewSpec;
 };

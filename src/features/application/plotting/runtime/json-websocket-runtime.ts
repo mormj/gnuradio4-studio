@@ -51,6 +51,8 @@ function toJsonText(data: unknown): string {
 
 export function createJsonWebSocketSubscription(params: {
   endpoint: string;
+  maxMessageBytes?: number;
+  resyncOnError?: boolean;
   onMessage: (payload: unknown) => void;
   onConnectionState?: (state: JsonWebSocketConnectionState, message?: string) => void;
   websocketFactory?: WebSocketFactory;
@@ -139,27 +141,36 @@ export function createJsonWebSocketSubscription(params: {
 
     socket = nextSocket;
     socket.onopen = () => {
-      attempts = 0;
+      if (closed || socket !== nextSocket) return;
+      if (!params.resyncOnError) attempts = 0;
       params.onConnectionState?.('open');
     };
     socket.onmessage = (event) => {
-      if (closed || fatalError) {
+      if (closed || fatalError || socket !== nextSocket) {
         return;
       }
       try {
-        params.onMessage(JSON.parse(toJsonText(event.data)));
+        const text = toJsonText(event.data);
+        if (params.maxMessageBytes && (text.length > params.maxMessageBytes || new Blob([text]).size > params.maxMessageBytes)) throw new Error('Oversized JSON websocket transaction');
+        params.onMessage(JSON.parse(text));
+        attempts = 0;
       } catch (error) {
-        finishWithError(error instanceof Error ? error.message : 'Malformed JSON websocket frame.');
+        const message = error instanceof Error ? error.message : 'Malformed JSON websocket frame.';
+        if (params.resyncOnError) {
+          socket = null;
+          nextSocket.close();
+          scheduleReconnect(message);
+        } else finishWithError(message);
       }
     };
     socket.onerror = () => {
-      if (closed || fatalError) {
+      if (closed || fatalError || socket !== nextSocket) {
         return;
       }
       params.onConnectionState?.('reconnecting', `${transport.routingLabel} websocket error.`);
     };
     socket.onclose = (event) => {
-      if (closed || fatalError) {
+      if (closed || fatalError || socket !== nextSocket) {
         return;
       }
       const reason = event.reason?.trim() ?? '';

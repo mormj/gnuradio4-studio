@@ -1,4 +1,7 @@
-import { useMemo, type ReactNode } from 'react';
+import { TablePanel } from './plotting/components/table-panel';
+import { useMemo, useRef, type ReactNode } from 'react';
+import { buildApiUrl } from '../../lib/api/client';
+import { useRuntimeSessionStore } from '../runtime-session/store/runtimeSessionStore';
 import { Group, Panel, Separator } from 'react-resizable-panels';
 import type { StudioLayoutSpec } from '../graph-document/model/studio-workspace';
 import type { StudioLayoutNode } from '../graph-document/model/studio-workspace';
@@ -51,6 +54,12 @@ function ApplicationPanelShell({
   executionState?: 'idle' | 'ready' | 'running' | 'stopped' | 'error';
   onUpdateVariableValue?: (variableName: string, binding: ExpressionBinding) => void;
 }) {
+  const session = useRuntimeSessionStore(s => Object.values(s.contextsByTabId).find(c => c.sessionId === entry.bindingSessionId)?.session);
+  const retained = useRef<{ sessionId?: string; binding?: WorkspaceLiveRendererContext['binding']; annotations: { sinkId: string; endpoint: string; sessionId?: string }[] }>({ annotations: [] });
+  if (retained.current.sessionId !== entry.bindingSessionId) retained.current = { sessionId: entry.bindingSessionId, annotations: [] };
+  const annotationBindings = (session?.streams ?? []).filter(s => s.payloadFormat === 'plot-annotations-json-v1' && s.transport === 'websocket' && s.ready).map(s => ({ sinkId: s.blockInstanceName, endpoint: buildApiUrl(s.path), sessionId: session?.id }));
+  const ended = executionState === 'stopped' || executionState === 'error';
+  if (!ended && annotationBindings.length) retained.current.annotations = annotationBindings;
   const { panel } = entry;
   const plotSpec = useMemo(() => derivePlotPanelSpec(entry), [entry]);
   if (panel.kind === 'control') {
@@ -102,6 +111,10 @@ function ApplicationPanelShell({
     sessionId: entry.bindingSessionId,
     executionState,
   };
+  if (!ended && liveContext.binding.status === 'configured') retained.current.binding = liveContext.binding;
+  // Keep the same session's ended subscriptions attached to the bounded cache.
+  // The subscription registries stop network I/O; a new session clears these bindings.
+  const presentationBinding = ended ? retained.current.binding ?? liveContext.binding : liveContext.binding;
   return (
     <article className="h-full rounded-lg bg-slate-950/35 overflow-hidden flex flex-col min-h-0">
       {showShellHeader ? (
@@ -112,16 +125,17 @@ function ApplicationPanelShell({
         </header>
       ) : null}
       <div className={`${showShellHeader ? 'p-2' : ''} flex-1 min-h-0`}>
-        {plotSpec ? (
+        {panel.kind === 'table' ? <TablePanel binding={presentationBinding} sessionId={entry.bindingSessionId} visibleColumns={panel.tableVisibleColumns} /> : plotSpec ? (
           <PlotPanel
             spec={plotSpec}
+            annotationBindings={ended ? retained.current.annotations : annotationBindings}
             binding={{
-              status: liveContext.binding.status,
-              transport: liveContext.binding.transport,
-              endpoint: liveContext.binding.endpoint,
-              showEndpointInUi: liveContext.binding.showEndpointInUi,
-              updateMs: liveContext.binding.updateMs,
-              reason: liveContext.binding.reason,
+              status: presentationBinding.status,
+              transport: presentationBinding.transport,
+              endpoint: presentationBinding.endpoint,
+              showEndpointInUi: presentationBinding.showEndpointInUi,
+              updateMs: presentationBinding.updateMs,
+              reason: presentationBinding.reason,
             }}
             executionState={executionState}
           />

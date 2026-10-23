@@ -1,5 +1,7 @@
-import { useEffect, useMemo, useRef } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import uPlot from 'uplot';
+import { AnnotationOverlay } from '../runtime/annotation-overlay';
+import { visibleAnnotationBoxes, type AnnotationBox } from '../runtime/annotation-projection';
 import 'uplot/dist/uPlot.min.css';
 import type { PlotAdapterProps, PlotAxisMode, PlotSeriesFrame, PlotTagAnnotation, PlotViewSpec } from '../model/types';
 import { buildPlotXAxis, buildPlotYLabel } from './plot-axis-format';
@@ -498,6 +500,9 @@ export function TimeseriesUplotAdapter({ spec, frame, width, height, axisMode = 
   const plotHostRef = useRef<HTMLDivElement | null>(null);
   const overlayRef = useRef<HTMLDivElement | null>(null);
   const chartRef = useRef<uPlot | null>(null);
+  const annotationsRef = useRef(frame.annotations);
+  annotationsRef.current = frame.annotations;
+  const [annotationBoxes, setAnnotationBoxes] = useState<AnnotationBox[]>([]);
   const lastDataSignatureRef = useRef<string>('');
   const customViewRangesRef = useRef<ViewRanges>({});
   const axisModeRef = useRef(axisMode);
@@ -574,6 +579,11 @@ export function TimeseriesUplotAdapter({ spec, frame, width, height, axisMode = 
       {
         width: hostWidth,
         height: hostHeight,
+        hooks: { draw: [u => {
+          const dpr = window.devicePixelRatio || 1;
+          const boxes = visibleAnnotationBoxes(annotationsRef.current ?? [], u.bbox.width / dpr, u.bbox.height / dpr, hz => u.valToPos(hz, 'x'), undefined, undefined, [], (value, unit) => frame.meta?.axisMetadata?.signalUnit === unit ? u.valToPos(value, 'y') : undefined);
+          setAnnotationBoxes(boxes.map(b => ({ ...b, x: b.x + u.bbox.left / dpr, y: b.y + u.bbox.top / dpr })));
+        }] },
         legend: {
           show: showLegend,
         },
@@ -881,9 +891,11 @@ export function TimeseriesUplotAdapter({ spec, frame, width, height, axisMode = 
     }
   }, [spec.xRange, spec.yRange, viewResetKey]);
 
+  useEffect(() => { chartRef.current?.redraw(false); }, [frame.annotations]);
   return (
     <div className="relative h-full min-h-0 w-full overflow-hidden rounded border border-slate-800 bg-slate-950">
       <div ref={plotHostRef} className="h-full min-h-0 w-full" />
+      <AnnotationOverlay onWheel={e => { e.preventDefault(); chartRef.current?.over.dispatchEvent(new WheelEvent('wheel', { deltaX: e.deltaX, deltaY: e.deltaY, clientX: e.clientX, clientY: e.clientY, ctrlKey: e.ctrlKey, shiftKey: e.shiftKey, bubbles: true, cancelable: true })); }} onPointerDown={e => { if ((e.target as HTMLElement).closest('[data-annotation-id]')) chartRef.current?.over.dispatchEvent(new MouseEvent('mousedown', { button: e.button, buttons: e.buttons, clientX: e.clientX, clientY: e.clientY, bubbles: true, cancelable: true })); }} items={frame.annotations} boxes={annotationBoxes} retained={frame.annotations?.length ?? 0} />
       <div ref={overlayRef} className="pointer-events-none absolute inset-0 overflow-hidden" />
     </div>
   );

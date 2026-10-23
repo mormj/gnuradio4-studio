@@ -505,9 +505,15 @@ export const useRuntimeSessionStore = create<RuntimeSessionState>((set, get) => 
         const previousSessionId = isReplacementRun ? context.sessionId : null;
 
         if (needsNewSession) {
+          // Generate transport scope only for the execution being created. Graph
+          // freshness compares the stable authored submission above.
+          const executionSubmission = buildCurrentSessionGraphSubmission(document, {
+            ...options,
+            executionNamespace: crypto.randomUUID(),
+          });
           const createdSession = await createSession({
             name: submission.graphName || 'demo',
-            grc: submission.content,
+            grc: executionSubmission.content,
             scheduler_id: schedulerId,
           });
           activeSession = createdSession;

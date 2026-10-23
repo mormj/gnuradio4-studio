@@ -197,6 +197,7 @@ function buildPlotSpecCacheKey(entry: WorkspacePanelViewModel, excludedParameter
       nodeId: entry.panel.nodeId,
       visible: entry.panel.visible,
       previewOnCanvas: entry.panel.previewOnCanvas,
+      annotationSources: entry.panel.kind === 'control' ? undefined : entry.panel.annotationSources,
       plotStyle: entry.panel.plotStyle ?? null,
     },
     node: {
@@ -237,7 +238,7 @@ export function derivePlotPanelSpec(entry: WorkspacePanelViewModel): PlotPanelSp
     (entry.panel.kind === 'series2d' ||
       payloadFormat === 'series2d-xy-json-v1' ||
       payloadFormat === 'dataset-xy-json-v1');
-  const isWaterfall = entry.panel.kind === 'waterfall' || payloadFormat === 'waterfall-spectrum-json-v1';
+  const isWaterfall = entry.panel.kind === 'waterfall' || payloadFormat === 'waterfall-spectrum-json-v1' || payloadFormat === 'dataset-waterfall-json-v1';
   const defaultXLabel = isWaterfall || isHistogram ? 'Frequency' : isSeries2D ? 'x' : 'sample';
   const defaultYLabel = isWaterfall || isHistogram ? 'Power' : isSeries2D ? 'y' : 'value';
   const xLabel = readTextParameterValue(entry.nodeParameters, ['x_label', 'xlabel']) ?? (payloadFormat === 'dataset-xy-json-v1' ? undefined : defaultXLabel);
@@ -265,7 +266,9 @@ export function derivePlotPanelSpec(entry: WorkspacePanelViewModel): PlotPanelSp
   const manualXRange = normalizeManualRange(xMin, xMax);
   const manualYRange = normalizeManualRange(yMin, yMax);
   const resolvedPayloadFormat =
-    payloadFormat === 'dataset-xy-json-v1'
+    payloadFormat === 'dataset-waterfall-json-v1'
+      ? 'dataset-waterfall-json-v1'
+      : payloadFormat === 'dataset-xy-json-v1'
       ? 'dataset-xy-json-v1'
       : payloadFormat === 'series2d-xy-json-v1'
         ? 'series2d-xy-json-v1'
@@ -321,6 +324,7 @@ export function derivePlotPanelSpec(entry: WorkspacePanelViewModel): PlotPanelSp
 
   const spec: PlotPanelSpec = {
     panelId: entry.panel.id,
+    annotationSources: entry.panel.annotationSources,
     kind: isWaterfall ? 'waterfall' : isHistogram ? 'histogram' : 'timeseries',
     source: {
       sinkId: entry.panel.nodeId,

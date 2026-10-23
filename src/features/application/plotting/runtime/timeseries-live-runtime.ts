@@ -1,3 +1,5 @@
+import { subscribeDatasetWaterfall } from './dataset-waterfall-subscription';
+import { datasetWaterfallImage } from './dataset-waterfall-frame';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   type HttpTimeSeriesSnapshot,
@@ -36,7 +38,8 @@ export type PlotPayloadContract =
   | 'series-window-json-v1'
   | 'series2d-xy-json-v1'
   | 'dataset-xy-json-v1'
-  | 'waterfall-spectrum-json-v1';
+  | 'waterfall-spectrum-json-v1'
+  | 'dataset-waterfall-json-v1';
 
 type ParsedLivePayload =
   | {
@@ -271,7 +274,7 @@ export function resolvePayloadContract(payloadFormat?: PlotPanelSpec['source']['
   if (payloadFormat === 'dataset-xy-json-v1') {
     return payloadFormat;
   }
-  if (payloadFormat === 'waterfall-spectrum-json-v1') {
+  if (payloadFormat === 'waterfall-spectrum-json-v1' || payloadFormat === 'dataset-waterfall-json-v1') {
     return payloadFormat;
   }
   return 'series-window-json-v1';
@@ -447,6 +450,7 @@ export function useTimeseriesLiveFrame({ spec, binding, executionState, isPaused
     runtimeActive &&
     hasEndpoint &&
     (expectedContract === 'series-window-json-v1' || expectedContract === 'series2d-xy-json-v1');
+  const supportsDatasetWaterfall = transportMode === 'websocket' && runtimeActive && hasEndpoint && expectedContract === 'dataset-waterfall-json-v1';
   const supportsWaterfallWebSocketLivePath =
     transportMode === 'websocket' && runtimeActive && hasEndpoint && expectedContract === 'waterfall-spectrum-json-v1';
   const supportsPowerSpectrumWebSocketLivePath =
@@ -547,6 +551,11 @@ export function useTimeseriesLiveFrame({ spec, binding, executionState, isPaused
       return;
     }
 
+    if (supportsDatasetWaterfall) {
+      controllerRef.current.setLoading('Connecting dataset waterfall…');
+      return;
+    }
+
     if (supportsWaterfallWebSocketLivePath) {
       tracePlotDiagnostic('binding-route', {
         panelId: spec.panelId,
@@ -560,6 +569,13 @@ export function useTimeseriesLiveFrame({ spec, binding, executionState, isPaused
     }
 
     fetchGenerationRef.current += 1;
+    if ((spec.annotationSources?.length || spec.source.payloadFormat === 'dataset-waterfall-json-v1') && (executionState === 'stopped' || executionState === 'error') && (frameRef.current.series?.length || frameRef.current.image)) {
+      const retained: PlotDataFrame={ ...frameRef.current, meta: { ...frameRef.current.meta, state: 'ready', errorKind: undefined, errorMessage: undefined, statusMessage: 'Execution ended · retained snapshot · finalization unavailable' } };
+      if(pendingNoDataTimeoutRef.current!==null){window.clearTimeout(pendingNoDataTimeoutRef.current);pendingNoDataTimeoutRef.current=null;pendingNoDataFrameRef.current=null;}
+      lastPublishedVersionRef.current=controllerRef.current.getVersion();
+      frameRef.current=retained;setFrame(retained);
+      return;
+    }
     controllerRef.current.reset();
     if (
       (!runtimeActive && binding.status === 'configured' && transportMode !== 'unsupported' && hasEndpoint) ||
@@ -608,6 +624,7 @@ export function useTimeseriesLiveFrame({ spec, binding, executionState, isPaused
     supportsJsonWebSocketLivePath,
     supportsPowerSpectrumWebSocketLivePath,
     supportsWaterfallWebSocketLivePath,
+    supportsDatasetWaterfall,
     transportMode,
     waterfallWebSocketEndpoint,
   ]);
@@ -628,6 +645,29 @@ export function useTimeseriesLiveFrame({ spec, binding, executionState, isPaused
     }
     void refresh();
   }, [isPaused, refresh, supportsHttpLivePath]);
+
+  useEffect(() => {
+    if (!supportsDatasetWaterfall) return;
+    let latest: Parameters<typeof datasetWaterfallImage>[0] | undefined;
+    let status = '';
+    let dirty = false;
+    const stop = subscribeDatasetWaterfall(endpoint, (state, message) => { latest = state; status = message; dirty = true; });
+    const timer = window.setInterval(() => {
+      if (!dirty || pausedRef.current) return;
+      dirty = false;
+      if (latest) controllerRef.current.ingestImage({ ...datasetWaterfallImage(latest), streamStatus: status }, Date.now(), { statusMessage: status });
+      else controllerRef.current.setLoading(status);
+    }, PLOT_PUBLISH_MS);
+    return () => {
+      // Reduction precedes painting. Flush its last accepted state before detaching
+      // the subscription, even when EOS/Stop arrives before the next paint tick.
+      if(dirty && latest) {
+        controllerRef.current.ingestImage({ ...datasetWaterfallImage(latest), streamStatus: status }, Date.now(), { statusMessage: status });
+        if(!pausedRef.current){const terminal=controllerRef.current.getFrame();frameRef.current=terminal;setFrame(terminal);}
+      }
+      stop(); window.clearInterval(timer);
+    };
+  }, [supportsDatasetWaterfall, endpoint]);
 
   useEffect(() => {
     if (!supportsJsonWebSocketLivePath) {

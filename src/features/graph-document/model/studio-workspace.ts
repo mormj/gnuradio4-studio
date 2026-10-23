@@ -2,7 +2,7 @@ import type { ExpressionBinding } from '../../variables/model/types';
 
 // StudioPanelSpec describes one panel definition (what exists).
 // It is panel identity + source + display intent, independent of arrangement.
-export type StudioPanelKind = 'series' | 'series2d' | 'histogram' | 'waterfall' | 'image' | 'audio' | 'scalar' | 'status' | 'control';
+export type StudioPanelKind = 'series' | 'series2d' | 'histogram' | 'waterfall' | 'table' | 'image' | 'audio' | 'scalar' | 'status' | 'control';
 
 export type StudioPlotPaletteRef = {
   kind: 'builtin' | 'studio';
@@ -69,6 +69,8 @@ export type StudioControlPanelSpec = {
 };
 
 export type StudioDataPanelSpec = {
+  tableVisibleColumns?: string[];
+  annotationSources?: { sinkId: string; payloadFormat?: 'plot-annotations-json-v1' }[];
   id: string;
   nodeId: string;
   kind: Exclude<StudioPanelKind, 'control'>;

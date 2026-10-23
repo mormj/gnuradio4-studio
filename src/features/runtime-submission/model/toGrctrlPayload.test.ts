@@ -892,3 +892,21 @@ describe('toGrctrlContentSubmission', () => {
     expect(submission.content).not.toContain('This is a note.');
   });
 });
+
+
+describe('dataset waterfall execution identity', () => {
+  it('injects one fresh namespace for every waterfall in each exported execution', () => {
+    const d = makeDocument('waterfall identity', '');
+    d.graph.nodes = ['a', 'b'].map(id => ({ id, blockType: 'gr::studio::StudioDataSetWaterfallSink<float64>', position: { x: 0, y: 0 }, parameters: { transport: {kind: 'literal' as const, value: 'websocket'}, run_namespace: {kind: 'literal' as const, value: 'old-run'}, source_epoch: {kind: 'literal' as const, value: 'old-epoch'} } }));
+    const stable = toGrctrlContentSubmission(d);
+    expect(toGrctrlContentSubmission(d)).toEqual(stable);
+    expect(stable.content).toContain('run_namespace: old-run');
+    const one = toGrctrlContentSubmission(d, { executionNamespace: 'run-one' }).content;
+    const two = toGrctrlContentSubmission(d, { executionNamespace: 'run-two' }).content;
+    expect(one).not.toContain('old-run');expect(one).not.toContain('old-epoch');
+    const namespaces = [...one.matchAll(/run_namespace: ([^\n]+)/g)].map(m => m[1]);
+    const epochs = [...one.matchAll(/source_epoch: ([^\n]+)/g)].map(m => m[1]);
+    expect(namespaces).toHaveLength(2);expect(namespaces[0]).toBe(namespaces[1]);expect(epochs).toEqual(namespaces);
+    expect(two).not.toContain(namespaces[0]);expect(one).toContain('dataset-waterfall-json-v1');
+  });
+});

@@ -13,6 +13,7 @@ const PANEL_KIND_BY_FAMILY: Readonly<Record<string, Exclude<StudioPanelKind, 'co
   series2d: 'series2d',
   histogram: 'histogram',
   waterfall: 'waterfall',
+  table: 'table',
   image: 'image',
   audio: 'audio',
   scalar: 'scalar',

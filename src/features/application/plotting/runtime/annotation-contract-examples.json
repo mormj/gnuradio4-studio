@@ -1,0 +1,384 @@
+[
+  {
+    "name": "annotation-empty",
+    "payload": {
+      "payload_format": "plot-annotations-json-v1",
+      "scope": {
+        "run_namespace": "fixture-run-a",
+        "producer_instance": "annotations0"
+      },
+      "stream_epoch": "publication-a",
+      "cursor": "0",
+      "message": "snapshot",
+      "retention": {
+        "max_items": 256,
+        "max_bytes": 67108864,
+        "evicted_items": "0",
+        "dropped_updates": "0"
+      },
+      "items": [],
+      "tombstones": []
+    }
+  },
+  {
+    "name": "annotation-before-row",
+    "payload": {
+      "payload_format": "plot-annotations-json-v1",
+      "scope": {
+        "run_namespace": "fixture-run-a",
+        "producer_instance": "annotations0"
+      },
+      "stream_epoch": "publication-a",
+      "cursor": "1",
+      "message": "delta",
+      "retention": {
+        "max_items": 256,
+        "max_bytes": 67108864,
+        "evicted_items": "0",
+        "dropped_updates": "0"
+      },
+      "base_cursor": "0",
+      "events": [
+        {
+          "operation": "upsert",
+          "value": {
+            "annotation_id": "[\"fixture-run-a\",\"clusterer0\",\"1\",\"9007199254740993\"]",
+            "revision": "1",
+            "geometry": {
+              "kind": "rectangle",
+              "x_min": 902001907.3485,
+              "x_max": 902005722.0455
+            },
+            "x_axis": {
+              "kind": "frequency",
+              "unit": "Hz"
+            },
+            "y_axis": {
+              "kind": "observation",
+              "first": {
+                "run_namespace": "fixture-run-a",
+                "source_id": "synthetic",
+                "acquisition_id": "task-a",
+                "source_epoch": "fixture-run-a",
+                "sequence": "9007199254740993"
+              },
+              "last": {
+                "run_namespace": "fixture-run-a",
+                "source_id": "synthetic",
+                "acquisition_id": "task-a",
+                "source_epoch": "fixture-run-a",
+                "sequence": "9007199254740993"
+              }
+            },
+            "label": "Region 9007199254740993",
+            "style": {
+              "state": "TENTATIVE",
+              "line": "solid"
+            },
+            "metadata": {
+              "support_count": "1",
+              "closure_reason": null
+            }
+          }
+        }
+      ],
+      "evicted_ids": []
+    }
+  },
+  {
+    "name": "annotation-snapshot",
+    "payload": {
+      "payload_format": "plot-annotations-json-v1",
+      "scope": {
+        "run_namespace": "fixture-run-a",
+        "producer_instance": "annotations0"
+      },
+      "stream_epoch": "publication-a",
+      "cursor": "1",
+      "message": "snapshot",
+      "retention": {
+        "max_items": 256,
+        "max_bytes": 67108864,
+        "evicted_items": "0",
+        "dropped_updates": "0"
+      },
+      "items": [
+        {
+          "annotation_id": "[\"fixture-run-a\",\"clusterer0\",\"1\",\"9007199254740993\"]",
+          "revision": "1",
+          "geometry": {
+            "kind": "rectangle",
+            "x_min": 902001907.3485,
+            "x_max": 902005722.0455
+          },
+          "x_axis": {
+            "kind": "frequency",
+            "unit": "Hz"
+          },
+          "y_axis": {
+            "kind": "observation",
+            "first": {
+              "run_namespace": "fixture-run-a",
+              "source_id": "synthetic",
+              "acquisition_id": "task-a",
+              "source_epoch": "fixture-run-a",
+              "sequence": "9007199254740993"
+            },
+            "last": {
+              "run_namespace": "fixture-run-a",
+              "source_id": "synthetic",
+              "acquisition_id": "task-a",
+              "source_epoch": "fixture-run-a",
+              "sequence": "9007199254740993"
+            }
+          },
+          "label": "Region 9007199254740993",
+          "style": {
+            "state": "TENTATIVE",
+            "line": "solid"
+          },
+          "metadata": {
+            "support_count": "1",
+            "closure_reason": null
+          }
+        }
+      ],
+      "tombstones": []
+    }
+  },
+  {
+    "name": "annotation-coasting",
+    "payload": {
+      "payload_format": "plot-annotations-json-v1",
+      "scope": {
+        "run_namespace": "fixture-run-a",
+        "producer_instance": "annotations0"
+      },
+      "stream_epoch": "publication-a",
+      "cursor": "2",
+      "message": "delta",
+      "retention": {
+        "max_items": 256,
+        "max_bytes": 67108864,
+        "evicted_items": "0",
+        "dropped_updates": "0"
+      },
+      "base_cursor": "1",
+      "events": [
+        {
+          "operation": "upsert",
+          "value": {
+            "annotation_id": "[\"fixture-run-a\",\"clusterer0\",\"1\",\"9007199254740993\"]",
+            "revision": "2",
+            "geometry": {
+              "kind": "rectangle",
+              "x_min": 902001907.3485,
+              "x_max": 902005722.0455
+            },
+            "x_axis": {
+              "kind": "frequency",
+              "unit": "Hz"
+            },
+            "y_axis": {
+              "kind": "observation",
+              "first": {
+                "run_namespace": "fixture-run-a",
+                "source_id": "synthetic",
+                "acquisition_id": "task-a",
+                "source_epoch": "fixture-run-a",
+                "sequence": "9007199254740993"
+              },
+              "last": {
+                "run_namespace": "fixture-run-a",
+                "source_id": "synthetic",
+                "acquisition_id": "task-a",
+                "source_epoch": "fixture-run-a",
+                "sequence": "9007199254740993"
+              }
+            },
+            "label": "Region 9007199254740993",
+            "style": {
+              "state": "COASTING",
+              "line": "dashed"
+            },
+            "metadata": {
+              "support_count": "1",
+              "closure_reason": null
+            }
+          }
+        }
+      ],
+      "evicted_ids": []
+    }
+  },
+  {
+    "name": "annotation-delete-clear",
+    "payload": {
+      "payload_format": "plot-annotations-json-v1",
+      "scope": {
+        "run_namespace": "fixture-run-a",
+        "producer_instance": "annotations0"
+      },
+      "stream_epoch": "publication-a",
+      "cursor": "3",
+      "message": "delta",
+      "retention": {
+        "max_items": 256,
+        "max_bytes": 67108864,
+        "evicted_items": "0",
+        "dropped_updates": "0"
+      },
+      "base_cursor": "2",
+      "events": [
+        {
+          "operation": "delete",
+          "annotation_id": "[\"fixture-run-a\",\"clusterer0\",\"1\",\"9007199254740993\"]",
+          "revision": "3"
+        },
+        {
+          "operation": "clear"
+        }
+      ],
+      "evicted_ids": []
+    }
+  },
+  {
+    "name": "annotation-qualified-time",
+    "payload": {
+      "payload_format": "plot-annotations-json-v1",
+      "scope": {
+        "run_namespace": "fixture-run-a",
+        "producer_instance": "annotations0"
+      },
+      "stream_epoch": "publication-a",
+      "cursor": "1",
+      "message": "snapshot",
+      "retention": {
+        "max_items": 256,
+        "max_bytes": 67108864,
+        "evicted_items": "0",
+        "dropped_updates": "0"
+      },
+      "items": [
+        {
+          "annotation_id": "[\"fixture-run-a\",\"clusterer0\",\"1\",\"9007199254740993\"]",
+          "revision": "1",
+          "geometry": {
+            "kind": "rectangle",
+            "x_min": 902001907.3485,
+            "x_max": 902005722.0455
+          },
+          "x_axis": {
+            "kind": "frequency",
+            "unit": "Hz"
+          },
+          "y_axis": {
+            "kind": "qualified_time",
+            "first_unix_ns": "1792497600000000000",
+            "last_unix_ns": "1792497601000000000",
+            "provenance": "fixture_utc"
+          },
+          "label": "Region 9007199254740993",
+          "style": {
+            "state": "TENTATIVE",
+            "line": "solid"
+          },
+          "metadata": {
+            "support_count": "1",
+            "closure_reason": null
+          }
+        }
+      ],
+      "tombstones": []
+    }
+  },
+  {
+    "name": "annotation-point-range",
+    "payload": {
+      "payload_format": "plot-annotations-json-v1",
+      "scope": {
+        "run_namespace": "fixture-run-a",
+        "producer_instance": "annotations0"
+      },
+      "stream_epoch": "publication-a",
+      "cursor": "1",
+      "message": "snapshot",
+      "retention": {
+        "max_items": 256,
+        "max_bytes": 67108864,
+        "evicted_items": "0",
+        "dropped_updates": "0"
+      },
+      "items": [
+        {
+          "annotation_id": "point",
+          "revision": "1",
+          "geometry": {
+            "kind": "point",
+            "x": 902003814.697,
+            "y": -80
+          },
+          "x_axis": {
+            "kind": "frequency",
+            "unit": "Hz"
+          },
+          "y_axis": {
+            "kind": "numeric",
+            "min": -80,
+            "max": -80,
+            "unit": "dBm"
+          },
+          "label": "Region 9007199254740993",
+          "style": {
+            "state": "TENTATIVE",
+            "line": "solid"
+          },
+          "metadata": {
+            "support_count": "1",
+            "closure_reason": null
+          }
+        },
+        {
+          "annotation_id": "range",
+          "revision": "1",
+          "geometry": {
+            "kind": "range",
+            "x_min": 902001907.3485,
+            "x_max": 902005722.0455
+          },
+          "x_axis": {
+            "kind": "frequency",
+            "unit": "Hz"
+          },
+          "y_axis": {
+            "kind": "observation",
+            "first": {
+              "run_namespace": "fixture-run-a",
+              "source_id": "synthetic",
+              "acquisition_id": "task-a",
+              "source_epoch": "fixture-run-a",
+              "sequence": "9007199254740993"
+            },
+            "last": {
+              "run_namespace": "fixture-run-a",
+              "source_id": "synthetic",
+              "acquisition_id": "task-a",
+              "source_epoch": "fixture-run-a",
+              "sequence": "9007199254740993"
+            }
+          },
+          "label": "Region 9007199254740993",
+          "style": {
+            "state": "TENTATIVE",
+            "line": "solid"
+          },
+          "metadata": {
+            "support_count": "1",
+            "closure_reason": null
+          }
+        }
+      ],
+      "tombstones": []
+    }
+  }
+]

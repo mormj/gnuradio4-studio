@@ -124,3 +124,30 @@ describe('json websocket runtime', () => {
     });
   });
 });
+
+
+describe('incremental JSON websocket resynchronization', () => {
+  it('reconnects on reducer rejection and ignores old connection callbacks', () => {
+    type Socket = { onopen: ((e: Event) => void) | null; onmessage: ((e: MessageEvent<unknown>) => void) | null; onerror: ((e: Event) => void) | null; onclose: ((e: CloseEvent) => void) | null; close: () => void };
+    const sockets: Socket[] = [], scheduled: (() => void)[] = [], accepted: unknown[] = [];
+    const stop = createJsonWebSocketSubscription({ endpoint: 'ws://localhost/stream', resyncOnError: true,
+      websocketFactory: () => { const socket: Socket = { onopen:null,onmessage:null,onerror:null,onclose:null,close:()=>socket.onclose?.({code:1006} as CloseEvent) }; sockets.push(socket);return socket; },
+      scheduler: {setTimeout: callback => {scheduled.push(callback);return scheduled.length;},clearTimeout:vi.fn()},
+      onMessage: payload => {if((payload as {bad?:boolean}).bad)throw new Error('cursor gap');accepted.push(payload);},
+    });
+    sockets[0].onmessage?.({data:'{"bad":true}'} as MessageEvent);
+    expect(scheduled).toHaveLength(1);scheduled.shift()!();expect(sockets).toHaveLength(2);
+    sockets[0].onmessage?.({data:'{"stale":true}'} as MessageEvent);sockets[0].onclose?.({code:1006} as CloseEvent);
+    sockets[1].onmessage?.({data:'{"message":"snapshot"}'} as MessageEvent);
+    expect(accepted).toEqual([{message:'snapshot'}]);expect(scheduled).toHaveLength(0);stop();
+  });
+  it('disconnects an oversized UTF-8 transaction before parsing', () => {
+    let message: ((e: MessageEvent<unknown>) => void) | null = null;
+    const onMessage=vi.fn(), close=vi.fn(), scheduled=vi.fn();
+    const stop=createJsonWebSocketSubscription({endpoint:'ws://localhost/stream',maxMessageBytes:8,resyncOnError:true,
+      websocketFactory:()=>{const socket={onopen:null,onerror:null,onclose:null,close,get onmessage(){return message;},set onmessage(value){message=value;}};return socket;},
+      scheduler:{setTimeout:scheduled.mockReturnValue(1),clearTimeout:vi.fn()},onMessage});
+    (message as unknown as (e:MessageEvent)=>void)({data:'"éééé"'} as MessageEvent);
+    expect(onMessage).not.toHaveBeenCalled();expect(close).toHaveBeenCalledOnce();expect(scheduled).toHaveBeenCalledOnce();stop();
+  });
+});
