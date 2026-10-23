@@ -21,6 +21,8 @@ import {
 } from '../../../lib/api/sessionsApi';
 import { useRuntimeSessionStore } from './runtimeSessionStore';
 import { buildCurrentSessionGraphSubmission } from '../../runtime-submission/model/current-graph-submission';
+import * as annotationLifecycle from '../../application/plotting/runtime/annotation-subscription';
+import * as tableLifecycle from '../../application/plotting/runtime/table-subscription';
 
 function graphDocument(name: string) {
   return {
@@ -115,6 +117,17 @@ describe('runtimeSessionStore (sessions-only model)', () => {
 
     const view = useRuntimeSessionStore.getState().getTabRuntimeView('tab-1', 'irrelevant-content');
     expect(view.executionState).toBe('running');
+  });
+
+  it('accepts a finite execution that completes before the first start poll', async () => {
+    const session={id:'finite-one',name:'finite',state:'stopped' as const,createdAt:'2026-10-21',updatedAt:'2026-10-21',lastError:null};
+    vi.mocked(createSession).mockResolvedValue(session);
+    const completed={...session,executionId:'finite-one:1',completionReason:'completed'};
+    vi.mocked(startSession).mockResolvedValue(completed);vi.mocked(getSession).mockResolvedValue(completed);
+    const result=await useRuntimeSessionStore.getState().runTab('tab-1',graphDocument('One frame'));
+    expect(result.ok).toBe(true);expect(useRuntimeSessionStore.getState().contextsByTabId['tab-1'].session?.state).toBe('stopped');
+    expect(useRuntimeSessionStore.getState().contextsByTabId['tab-1'].lastActionStatus).toBe('success');
+    expect(vi.mocked(startSession)).toHaveBeenCalledTimes(1);
   });
 
   it('rerun unchanged graph reuses linked session and skips createSession', async () => {
@@ -345,7 +358,7 @@ describe('runtimeSessionStore (sessions-only model)', () => {
     expect(context.busy).toBe(false);
   });
 
-  it('reports stopped execution state while stop is in progress', () => {
+  it('keeps running subscriptions until Stop and terminal cursor reconciliation finish', () => {
     useRuntimeSessionStore.setState((state) => ({
       contextsByTabId: {
         ...state.contextsByTabId,
@@ -368,7 +381,7 @@ describe('runtimeSessionStore (sessions-only model)', () => {
     }));
 
     const view = useRuntimeSessionStore.getState().getTabRuntimeView('tab-1');
-    expect(view.executionState).toBe('stopped');
+    expect(view.executionState).toBe('running');
     expect(view.operationState).toBe('stopping-session');
   });
 
@@ -453,6 +466,37 @@ describe('runtimeSessionStore (sessions-only model)', () => {
     const context = useRuntimeSessionStore.getState().contextsByTabId['tab-1'];
     expect(context.sessionId).toBe('session-new');
     expect(context.session?.state).toBe('running');
+  });
+
+  it('ends retained stream caches when polling observes natural completion', async () => {
+    const annotations=vi.spyOn(annotationLifecycle,'endSessionAnnotations');
+    const tables=vi.spyOn(tableLifecycle,'endSessionTables');
+    await useRuntimeSessionStore.getState().linkSessionToTab('tab-1','session-1');
+    vi.mocked(getSession).mockResolvedValue({id:'session-1',name:'finite',state:'stopped',createdAt:'2026-10-21',updatedAt:'2026-10-21',lastError:null});
+    await useRuntimeSessionStore.getState().refreshSessionStateForTab('tab-1');
+    expect(annotations).toHaveBeenCalledWith('session-1',true);expect(tables).toHaveBeenCalledWith('session-1',true);
+    expect(useRuntimeSessionStore.getState().contextsByTabId['tab-1'].session?.state).toBe('stopped');
+    annotations.mockRestore();tables.mockRestore();
+  });
+
+  it('passive polling records finite completion without superseding user actions', async () => {
+    await useRuntimeSessionStore.getState().linkSessionToTab('tab-1','session-1');
+    const before=useRuntimeSessionStore.getState().contextsByTabId['tab-1'];
+    vi.mocked(getSession).mockResolvedValue({...before.session!,state:'stopped'});
+    await useRuntimeSessionStore.getState().pollSessionForTab('tab-1');
+    const ended=useRuntimeSessionStore.getState().contextsByTabId['tab-1'];
+    expect(ended.session?.state).toBe('stopped');expect(ended.lastAction).toBe(before.lastAction);expect(ended.busy).toBe(false);
+  });
+
+  it('ignores a passive poll result after Stop starts', async () => {
+    await useRuntimeSessionStore.getState().linkSessionToTab('tab-1','session-1');
+    const session=useRuntimeSessionStore.getState().contextsByTabId['tab-1'].session!;
+    const poll=defer<typeof session>();vi.mocked(getSession).mockReturnValueOnce(poll.promise);
+    const pending=useRuntimeSessionStore.getState().pollSessionForTab('tab-1');
+    vi.mocked(stopSession).mockResolvedValue({...session,state:'stopped'});vi.mocked(getSession).mockResolvedValue({...session,state:'stopped'});
+    await useRuntimeSessionStore.getState().stopSessionForTab('tab-1');
+    poll.resolve({...session,state:'running'});await pending;
+    expect(useRuntimeSessionStore.getState().contextsByTabId['tab-1'].session?.state).toBe('stopped');
   });
 
   it('refreshSessionStateForTab unlinks missing session on 404', async () => {
@@ -573,4 +617,50 @@ it.each([
   document.graph.nodes[0].parameters = { window_size: { kind: 'literal', value: 128 } } as typeof document.graph.nodes[0]['parameters'];
   const edited = buildCurrentSessionGraphSubmission(document);
   expect(useRuntimeSessionStore.getState().getTabRuntimeView('tab-1', edited.content).graphDriftState).toBe('out-of-sync');
+});
+
+it('annotation restart creates a fresh exported execution and never invokes raw restart', async () => {
+  vi.clearAllMocks();resetStore();
+  const document = { ...graphDocument('annotations'), graph: { nodes: [{ id: 'annotations0', blockType: 'gr::studio::StudioAnnotationSink<float64>', position: { x: 0, y: 0 }, parameters: { transport: { kind: 'literal' as const, value: 'websocket' } } }], edges: [] } };
+  let serial = 0;
+  const records = new Map<string, Awaited<ReturnType<typeof getSession>>>();
+  vi.mocked(listSessions).mockResolvedValue([]);
+  vi.mocked(createSession).mockImplementation(async () => {
+    const session = { id: `annotation-session-${++serial}`, name: 'annotations', state: 'stopped' as const, createdAt: '2026-10-20', updatedAt: '2026-10-20', lastError: null };
+    records.set(session.id, session);return session;
+  });
+  vi.mocked(startSession).mockImplementation(async id => { const s = { ...records.get(id)!, state: 'running' as const };records.set(id, s);return s; });
+  vi.mocked(stopSession).mockImplementation(async id => { const s = { ...records.get(id)!, state: 'stopped' as const };records.set(id, s);return s; });
+  vi.mocked(getSession).mockImplementation(async id => records.get(id)!);
+  vi.mocked(deleteSession).mockResolvedValue({ deleted: true });
+  const first = await useRuntimeSessionStore.getState().runTab('tab-1', document);expect(first.ok).toBe(true);
+  await useRuntimeSessionStore.getState().restartSessionForTab('tab-1');
+  expect(createSession).toHaveBeenCalledTimes(2);expect(stopSession).toHaveBeenCalledWith('annotation-session-1');expect(deleteSession).toHaveBeenCalledWith('annotation-session-1');
+  const submissions = vi.mocked(createSession).mock.calls.map(([request]) => request.grc);
+  const namespaces = submissions.map(s => s.match(/run_namespace: ([^\n]+)/)?.[1]);
+  expect(namespaces[0]).toBeTruthy();expect(namespaces[1]).not.toBe(namespaces[0]);
+  expect(useRuntimeSessionStore.getState().contextsByTabId['tab-1'].sessionId).toBe('annotation-session-2');
+});
+
+it('table restart creates a fresh exported execution and never invokes raw restart', async () => {
+  vi.clearAllMocks();resetStore();
+  const document = { ...graphDocument('tables'), graph: { nodes: [{ id: 'tables0', blockType: 'gr::studio::StudioTableSink<float64>', position: { x: 0, y: 0 }, parameters: { transport: { kind: 'literal' as const, value: 'websocket' } } }], edges: [] } };
+  let serial = 0;
+  const records = new Map<string, Awaited<ReturnType<typeof getSession>>>();
+  vi.mocked(listSessions).mockResolvedValue([]);
+  vi.mocked(createSession).mockImplementation(async () => {
+    const session = { id: `table-session-${++serial}`, name: 'tables', state: 'stopped' as const, createdAt: '2026-10-20', updatedAt: '2026-10-20', lastError: null };
+    records.set(session.id, session);return session;
+  });
+  vi.mocked(startSession).mockImplementation(async id => { const s = { ...records.get(id)!, state: 'running' as const };records.set(id, s);return s; });
+  vi.mocked(stopSession).mockImplementation(async id => { const s = { ...records.get(id)!, state: 'stopped' as const };records.set(id, s);return s; });
+  vi.mocked(getSession).mockImplementation(async id => records.get(id)!);
+  vi.mocked(deleteSession).mockResolvedValue({ deleted: true });
+  const first = await useRuntimeSessionStore.getState().runTab('tab-1', document);expect(first.ok).toBe(true);
+  await useRuntimeSessionStore.getState().restartSessionForTab('tab-1');
+  expect(createSession).toHaveBeenCalledTimes(2);expect(stopSession).toHaveBeenCalledWith('table-session-1');expect(deleteSession).toHaveBeenCalledWith('table-session-1');
+  const submissions = vi.mocked(createSession).mock.calls.map(([request]) => request.grc);
+  const namespaces = submissions.map(s => s.match(/run_namespace: ([^\n]+)/)?.[1]);
+  expect(namespaces[0]).toBeTruthy();expect(namespaces[1]).not.toBe(namespaces[0]);
+  expect(useRuntimeSessionStore.getState().contextsByTabId['tab-1'].sessionId).toBe('table-session-2');
 });

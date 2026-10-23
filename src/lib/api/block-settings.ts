@@ -47,10 +47,11 @@ function parseRuntimeSettingsObject(payload: unknown, context: string): RuntimeS
   return payload;
 }
 
-export async function getBlockSettings(sessionId: string, uniqueName: string): Promise<RuntimeSettingsObject> {
+export async function getBlockSettings(sessionId: string, uniqueName: string, signal?: AbortSignal): Promise<RuntimeSettingsObject> {
   const payload = await jsonRequest<unknown>({
     path: `/sessions/${encodeURIComponent(sessionId)}/blocks/${encodeURIComponent(uniqueName)}/settings`,
     method: 'GET',
+    signal,
   });
 
   if (!payload || Array.isArray(payload) || typeof payload !== 'object') {

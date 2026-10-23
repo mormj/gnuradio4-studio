@@ -19,6 +19,8 @@ export type SessionRecord = {
   updatedAt: string;
   lastError: string | null;
   schedulerId?: string;
+  executionId?: string;
+  completionReason?: string;
   streams?: SessionStreamRecord[];
 };
 
@@ -64,6 +66,8 @@ function mapSession(dto: SessionDto): SessionRecord {
     updatedAt: dto.updated_at,
     lastError: dto.last_error ?? null,
     schedulerId: dto.scheduler_id,
+    executionId: dto.execution_id,
+    completionReason: dto.completion_reason,
     streams: dto.streams?.map(mapSessionStream),
   };
 }

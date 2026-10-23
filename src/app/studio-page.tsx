@@ -257,6 +257,17 @@ export function StudioPage() {
   const deleteSessionForTab = useRuntimeSessionStore((state) => state.deleteSessionForTab);
   const getTabRuntimeView = useRuntimeSessionStore((state) => state.getTabRuntimeView);
   const runtimeContextsByTabId = useRuntimeSessionStore((state) => state.contextsByTabId);
+  // Observe finite completion in both the graph and in-app views, without creating user actions.
+  useQueries({ queries: Object.entries(runtimeContextsByTabId)
+    .filter(([, context]) => context.sessionId && context.session?.state === 'running')
+    .map(([tabId, context]) => ({
+      queryKey: ['running-session', tabId, context.sessionId],
+      queryFn: async () => { await useRuntimeSessionStore.getState().pollSessionForTab(tabId); return null; },
+      refetchInterval: 1000,
+      enabled: !context.busy,
+      retry: false,
+    })),
+  });
 
   const capabilities = useDocumentStore((state) => state.capabilities);
   const isOpening = useDocumentStore((state) => state.isOpening);

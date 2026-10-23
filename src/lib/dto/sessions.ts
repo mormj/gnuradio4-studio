@@ -20,6 +20,8 @@ export const sessionDtoSchema = z
     updated_at: z.string(),
     last_error: z.string().nullable(),
     scheduler_id: z.string().optional(),
+    execution_id: z.string().optional(),
+    completion_reason: z.string().optional(),
     streams: z.array(sessionStreamDtoSchema).optional(),
   })
   .passthrough();

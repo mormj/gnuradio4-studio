@@ -1,3 +1,10 @@
+import { getBlockSettings } from '../../../lib/api/block-settings';
+import { buildApiUrl } from '../../../lib/api/client';
+import { awaitAnnotationsCursor } from '../../application/plotting/runtime/annotation-subscription';
+import { awaitTablesCursor } from '../../application/plotting/runtime/table-subscription';
+import { awaitDatasetWaterfallCursor, endDatasetWaterfall } from '../../application/plotting/runtime/dataset-waterfall-subscription';
+import { endSessionTables } from '../../application/plotting/runtime/table-subscription';
+import { endSessionAnnotations } from '../../application/plotting/runtime/annotation-subscription';
 import { create } from 'zustand';
 import type { GraphDocument } from '../../graph-document/model/types';
 import type { BlockDetails } from '../../../lib/api/block-details';
@@ -79,6 +86,7 @@ type RuntimeSessionState = {
   deleteSessionForTab: (tabId: string) => Promise<void>;
   refreshTab: (tabId: string) => Promise<void>;
   refreshSessionStateForTab: (tabId: string) => Promise<void>;
+  pollSessionForTab: (tabId: string) => Promise<void>;
   startSessionById: (sessionId: string) => Promise<void>;
   stopSessionById: (sessionId: string) => Promise<void>;
   restartSessionById: (sessionId: string) => Promise<void>;
@@ -154,7 +162,7 @@ function deriveExecutionState(context: TabExecutionContext): ExecutionState {
   const state = context.session?.state;
 
   if (context.busy && context.lastActionStatus === 'running') {
-    if (context.lastAction === 'stop' || context.lastAction === 'delete') {
+    if (context.lastAction === 'delete') {
       return 'stopped';
     }
   }
@@ -262,6 +270,14 @@ function wait(ms: number): Promise<void> {
 }
 
 export const useRuntimeSessionStore = create<RuntimeSessionState>((set, get) => {
+  const annotationRuns = new Map<string, { document: GraphDocument; options?: Parameters<RuntimeSessionState['runTab']>[2] }>();
+  const actionVersionBySessionId = new Map<string, number>();
+  const beginSessionAction = (sessionId: string) => {
+    const version = (actionVersionBySessionId.get(sessionId) ?? 0) + 1;
+    actionVersionBySessionId.set(sessionId, version);
+    return version;
+  };
+
   const actionVersionByTabId: Record<string, number> = {};
 
   const patchContext = (tabId: string, updater: (current: TabExecutionContext) => TabExecutionContext) => {
@@ -370,13 +386,24 @@ export const useRuntimeSessionStore = create<RuntimeSessionState>((set, get) => 
     });
   };
 
+  const ownsTabExecution = (tabId: string, version: number, sessionId: string, previous: SessionRecord | null | undefined) => () => {
+    const context = get().contextsByTabId[tabId];
+    return isCurrentAction(tabId, version) && context?.sessionId === sessionId &&
+      context.session?.executionId === previous?.executionId;
+  };
+
   const refreshSessionStateWithVersion = async (
     tabId: string,
     sessionId: string,
     version: number,
   ): Promise<SessionRecord | null> => {
+    const previous = get().contextsByTabId[tabId]?.session;
+    const ownsExecution = ownsTabExecution(tabId, version, sessionId, previous);
     try {
       const session = await getSession(sessionId);
+      if (isCurrentAction(tabId, version) && session.state !== 'running' && get().contextsByTabId[tabId]?.session?.state === 'running') {
+        await reconcileTerminalStreams(previous, session, ownsExecution);
+      }
       if (!patchContextIfCurrent(tabId, version, (current) => ({
         ...current,
         sessionId: session.id,
@@ -424,7 +451,7 @@ export const useRuntimeSessionStore = create<RuntimeSessionState>((set, get) => 
         return session;
       }
 
-      if (target === 'running' && session.state === 'running') {
+      if (target === 'running' && (session.state === 'running' || (session.state === 'stopped' && session.completionReason === 'completed'))) {
         return session;
       }
 
@@ -474,6 +501,7 @@ export const useRuntimeSessionStore = create<RuntimeSessionState>((set, get) => 
     },
 
     removeTabContext: (tabId) => {
+      annotationRuns.delete(tabId);
       delete actionVersionByTabId[tabId];
       set((state) => {
         const next = { ...state.contextsByTabId };
@@ -490,6 +518,9 @@ export const useRuntimeSessionStore = create<RuntimeSessionState>((set, get) => 
       const actionVersion = beginAction(tabId, 'start');
 
       try {
+        const hasAnnotations = document.graph.nodes.some(n => (n.blockType === 'gr::studio::StudioAnnotationSink<float64>' || n.blockType === 'gr::studio::StudioTableSink<float64>'));
+        if (hasAnnotations) annotationRuns.set(tabId, { document, options });
+        else annotationRuns.delete(tabId);
         const submission = buildCurrentSessionGraphSubmission(document, options);
         const schedulerId = document.metadata.schedulerId;
         const submissionHash = hashSubmissionSignature(submission.content, schedulerId);
@@ -497,14 +528,15 @@ export const useRuntimeSessionStore = create<RuntimeSessionState>((set, get) => 
 
         const hasSubmissionDrift = context.lastSubmittedHash !== submissionHash;
         const shouldReplaceErroredSession = Boolean(context.sessionId) && context.session?.state === 'error';
-        const needsNewSession = !context.sessionId || hasSubmissionDrift || shouldReplaceErroredSession;
-        const isReplacementRun = Boolean(context.sessionId) && (hasSubmissionDrift || shouldReplaceErroredSession);
+        const needsNewSession = !context.sessionId || hasSubmissionDrift || shouldReplaceErroredSession || hasAnnotations;
+        const isReplacementRun = Boolean(context.sessionId) && (hasSubmissionDrift || shouldReplaceErroredSession || hasAnnotations);
 
         let activeSession: SessionRecord | null = context.session;
         let activeSessionId = context.sessionId;
         const previousSessionId = isReplacementRun ? context.sessionId : null;
 
         if (needsNewSession) {
+          if (previousSessionId) endSessionTablesAndAnnotations(previousSessionId);
           // Generate transport scope only for the execution being created. Graph
           // freshness compares the stable authored submission above.
           const executionSubmission = buildCurrentSessionGraphSubmission(document, {
@@ -631,7 +663,7 @@ export const useRuntimeSessionStore = create<RuntimeSessionState>((set, get) => 
         }
 
         await get().refreshSessionList();
-        completeAction(tabId, actionVersion, 'success', null, 'Session running.');
+        completeAction(tabId, actionVersion, 'success', null, converged.state === 'stopped' ? 'Session completed.' : 'Session running.');
         return { ok: true, sessionId: converged.id, session: converged };
       } catch (error) {
         const message = toErrorMessage(error);
@@ -650,7 +682,10 @@ export const useRuntimeSessionStore = create<RuntimeSessionState>((set, get) => 
       }
 
       try {
+        const previous = get().contextsByTabId[tabId]?.session;
+        const ownsExecution = ownsTabExecution(tabId, actionVersion, sessionId, previous);
         const stopped = await stopSession(sessionId);
+        await reconcileTerminalStreams(previous, stopped, ownsExecution);
         if (!patchContextIfCurrent(tabId, actionVersion, (current) => ({
           ...current,
           session: stopped,
@@ -684,6 +719,14 @@ export const useRuntimeSessionStore = create<RuntimeSessionState>((set, get) => 
     },
 
     restartSessionForTab: async (tabId) => {
+      const annotationRun = annotationRuns.get(tabId);
+      if (annotationRun) {
+        await get().stopSessionForTab(tabId);
+        const stopped = get().contextsByTabId[tabId];
+        if (stopped?.session?.state !== 'stopped') return;
+        await get().runTab(tabId, annotationRun.document, annotationRun.options);
+        return;
+      }
       const actionVersion = beginAction(tabId, 'restart');
       const sessionId = get().contextsByTabId[tabId]?.sessionId;
 
@@ -693,6 +736,7 @@ export const useRuntimeSessionStore = create<RuntimeSessionState>((set, get) => 
       }
 
       try {
+        if (get().contextsByTabId[tabId]?.session?.streams?.some(s => ['plot-annotations-json-v1', 'table-updates-json-v1'].includes(s.payloadFormat))) throw new Error('Annotation executions require a fresh graph export; use Run from the graph tab.');
         const restarted = await restartSession(sessionId);
         if (!patchContextIfCurrent(tabId, actionVersion, (current) => ({
           ...current,
@@ -737,6 +781,7 @@ export const useRuntimeSessionStore = create<RuntimeSessionState>((set, get) => 
 
       try {
         await deleteSession(sessionId);
+        endSessionTablesAndAnnotations(sessionId);
 
         patchContextIfCurrent(tabId, actionVersion, (current) =>
           pushActivity(
@@ -778,6 +823,24 @@ export const useRuntimeSessionStore = create<RuntimeSessionState>((set, get) => 
       await get().refreshSessionStateForTab(tabId);
     },
 
+    pollSessionForTab: async (tabId) => {
+      const before=get().contextsByTabId[tabId];
+      if(!before?.sessionId || before.busy || before.session?.state!=='running')return;
+      const sessionId=before.sessionId, version=actionVersionByTabId[tabId];
+      const current=()=>{const c=get().contextsByTabId[tabId];return c?.sessionId===sessionId && !c.busy && actionVersionByTabId[tabId]===version && c.session?.executionId===before.session?.executionId;};
+      try {
+        const session=await getSession(sessionId);
+        if(!current())return;
+        if(session.state!=='running')await reconcileTerminalStreams(before.session, session, current);
+        if(!current())return;
+        patchContext(tabId,c=>({...c,session,sessionRefreshedAt:nowIsoString(),lastError:session.lastError}));
+      } catch(error) {
+        if(!current())return;
+        if(isMissingSessionError(error)){endSessionTablesAndAnnotations(sessionId);patchContext(tabId,c=>clearSessionFromContext(c,'Linked session no longer exists on backend.'));}
+        else patchContext(tabId,c=>({...c,lastError:toErrorMessage(error)}));
+      }
+    },
+
     refreshSessionStateForTab: async (tabId) => {
       const actionVersion = beginAction(tabId, 'refresh');
       const sessionId = get().contextsByTabId[tabId]?.sessionId;
@@ -802,10 +865,19 @@ export const useRuntimeSessionStore = create<RuntimeSessionState>((set, get) => 
     },
 
     startSessionById: async (sessionId) => {
+      beginSessionAction(sessionId);
       const tabId = get().findTabIdBySessionId(sessionId);
       if (tabId) {
+        const annotationRun = annotationRuns.get(tabId);
+        if (annotationRun) {
+          if (get().contextsByTabId[tabId]?.session?.state === 'running') return;
+          await get().runTab(tabId, annotationRun.document, annotationRun.options);
+          return;
+        }
         const actionVersion = beginAction(tabId, 'start');
         try {
+          const linked = get().contextsByTabId[tabId]?.session;
+          if (linked?.streams?.some(s => ['plot-annotations-json-v1', 'table-updates-json-v1'].includes(s.payloadFormat)) && linked.state !== 'running') throw new Error('Annotation start requires a fresh graph export.');
           const started = await startSession(sessionId);
           if (!patchContextIfCurrent(tabId, actionVersion, (current) => ({
             ...current,
@@ -835,33 +907,44 @@ export const useRuntimeSessionStore = create<RuntimeSessionState>((set, get) => 
         return;
       }
 
+      const external = get().sessions.find(s => s.id === sessionId);
+      if (external?.streams?.some(s => ['plot-annotations-json-v1', 'table-updates-json-v1'].includes(s.payloadFormat)) && external.state !== 'running') throw new Error('Annotation start requires a fresh graph export.');
       await startSession(sessionId);
       await get().refreshSessionList();
     },
 
     stopSessionById: async (sessionId) => {
+      const version = beginSessionAction(sessionId);
       const tabId = get().findTabIdBySessionId(sessionId);
       if (tabId) {
         await get().stopSessionForTab(tabId);
         return;
       }
 
-      await stopSession(sessionId);
+      const previous = get().sessions.find(s => s.id === sessionId);
+      const ownsExecution = () => actionVersionBySessionId.get(sessionId) === version &&
+        !get().findTabIdBySessionId(sessionId) &&
+        get().sessions.find(s => s.id === sessionId)?.executionId === previous?.executionId;
+      const stopped = await stopSession(sessionId);
+      await reconcileTerminalStreams(previous, stopped, ownsExecution);
       await get().refreshSessionList();
     },
 
     restartSessionById: async (sessionId) => {
+      beginSessionAction(sessionId);
       const tabId = get().findTabIdBySessionId(sessionId);
       if (tabId) {
         await get().restartSessionForTab(tabId);
         return;
       }
 
+      if (get().sessions.some(s => s.id === sessionId && s.streams?.some(stream => ['plot-annotations-json-v1', 'table-updates-json-v1'].includes(stream.payloadFormat)))) throw new Error('Annotation restart requires a fresh graph export.');
       await restartSession(sessionId);
       await get().refreshSessionList();
     },
 
     deleteSessionById: async (sessionId) => {
+      beginSessionAction(sessionId);
       const tabId = get().findTabIdBySessionId(sessionId);
       if (tabId) {
         await get().deleteSessionForTab(tabId);
@@ -869,6 +952,7 @@ export const useRuntimeSessionStore = create<RuntimeSessionState>((set, get) => 
       }
 
       await deleteSession(sessionId);
+      endSessionTablesAndAnnotations(sessionId);
       await get().refreshSessionList();
     },
 
@@ -951,3 +1035,48 @@ export const useRuntimeSessionStore = create<RuntimeSessionState>((set, get) => 
     },
   };
 });
+
+function endSessionTablesAndAnnotations(sessionId: string) { endSessionAnnotations(sessionId); endSessionTables(sessionId); }
+
+// Keep subscriptions alive until each active reducer reaches its producer's frozen cursor.
+// No transport result is interpreted as a producer's finalization or a region update.
+async function reconcileTerminalStreams(
+  previous: SessionRecord | null | undefined,
+  terminal: SessionRecord,
+  ownsExecution: () => boolean,
+): Promise<void> {
+  const current = () => ownsExecution() &&
+    (!previous?.executionId || previous.executionId === terminal.executionId);
+  if (!current()) return;
+
+  const streams = (previous?.streams ?? []).filter(stream =>
+    ['dataset-waterfall-json-v1', 'plot-annotations-json-v1', 'table-updates-json-v1'].includes(stream.payloadFormat));
+  const results = await Promise.all(streams.map(async stream => {
+    const endpoint = buildApiUrl(stream.path);
+    try {
+      const settings = await getBlockSettings(terminal.id, stream.blockInstanceName, AbortSignal.timeout(3000));
+      if (!current()) return false;
+      const metadata = settings.__gr4cp_terminal;
+      if (!metadata || typeof metadata !== 'object' ||
+        (terminal.executionId && metadata.execution_id !== terminal.executionId) ||
+        typeof settings.publication_cursor !== 'string') return false;
+      const awaitCursor = stream.payloadFormat === 'dataset-waterfall-json-v1' ? awaitDatasetWaterfallCursor :
+        stream.payloadFormat === 'plot-annotations-json-v1' ? awaitAnnotationsCursor : awaitTablesCursor;
+      const complete = await awaitCursor(endpoint, settings.publication_cursor);
+      // An action or execution can change during either wait. Never end the
+      // endpoint now owned by a newer run, even if the old reply matched its run.
+      if (!current()) return false;
+      if (stream.payloadFormat === 'dataset-waterfall-json-v1') endDatasetWaterfall(endpoint, complete);
+      return complete;
+    } catch {
+      return false;
+    }
+  }));
+  if (!current()) return;
+  const complete = results.every(Boolean);
+  endSessionAnnotations(terminal.id, complete);
+  endSessionTables(terminal.id, complete);
+  if (!complete) for (const stream of streams) {
+    if (stream.payloadFormat === 'dataset-waterfall-json-v1') endDatasetWaterfall(buildApiUrl(stream.path), false);
+  }
+}
