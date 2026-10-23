@@ -1,0 +1,222 @@
+{
+  "format": "gr4-studio.graph",
+  "version": 1,
+  "metadata": {
+    "name": "Persistent synthetic annotations",
+    "description": "Hardware-free generic Studio spectrum and observation waterfall with independent persistent annotations. Fresh namespace on each export. Unknown RF time.",
+    "studio": {
+      "panels": [
+        {
+          "id": "plot-spectrum",
+          "nodeId": "spectrum0",
+          "kind": "series2d",
+          "title": "Synthetic spectrum",
+          "visible": true,
+          "previewOnCanvas": false,
+          "annotationSources": [
+            {
+              "sinkId": "annotations0",
+              "payloadFormat": "plot-annotations-json-v1"
+            }
+          ]
+        },
+        {
+          "id": "plot-waterfall",
+          "nodeId": "waterfall0",
+          "kind": "waterfall",
+          "title": "Synthetic observations",
+          "visible": true,
+          "previewOnCanvas": false,
+          "annotationSources": [
+            {
+              "sinkId": "annotations0",
+              "payloadFormat": "plot-annotations-json-v1"
+            }
+          ]
+        }
+      ],
+      "layout": {
+        "version": 2,
+        "root": {
+          "kind": "split",
+          "direction": "column",
+          "children": [
+            {
+              "kind": "pane",
+              "panelId": "plot-spectrum"
+            },
+            {
+              "kind": "pane",
+              "panelId": "plot-waterfall"
+            }
+          ],
+          "sizes": [
+            45,
+            55
+          ]
+        }
+      }
+    }
+  },
+  "graph": {
+    "nodes": [
+      {
+        "id": "synthetic0",
+        "blockType": "gr::studio::SyntheticSpectrumSource",
+        "position": {
+          "x": 0,
+          "y": 0
+        },
+        "parameters": {
+          "bins": {
+            "kind": "literal",
+            "value": 6817
+          },
+          "interval_ms": {
+            "kind": "literal",
+            "value": 100
+          },
+          "finite_frames": {
+            "kind": "literal",
+            "value": 0
+          }
+        }
+      },
+      {
+        "id": "spectrum0",
+        "blockType": "gr::studio::StudioDataSetSink<float64>",
+        "position": {
+          "x": 340,
+          "y": 0
+        },
+        "parameters": {
+          "transport": {
+            "kind": "literal",
+            "value": "http_poll"
+          },
+          "endpoint": {
+            "kind": "literal",
+            "value": "http://127.0.0.1:18084/snapshot"
+          }
+        }
+      },
+      {
+        "id": "waterfall0",
+        "blockType": "gr::studio::StudioDataSetWaterfallSink<float64>",
+        "position": {
+          "x": 680,
+          "y": 0
+        },
+        "parameters": {
+          "transport": {
+            "kind": "literal",
+            "value": "websocket"
+          },
+          "endpoint": {
+            "kind": "literal",
+            "value": "ws://127.0.0.1:18089/waterfall"
+          },
+          "run_namespace": {
+            "kind": "literal",
+            "value": "stream-replace-per-execution"
+          },
+          "source_epoch": {
+            "kind": "literal",
+            "value": "stream-replace-per-execution"
+          },
+          "max_rows": {
+            "kind": "literal",
+            "value": 256
+          }
+        }
+      },
+      {
+        "id": "syntheticAnnotations0",
+        "blockType": "gr::studio::SyntheticAnnotationSource",
+        "position": {
+          "x": 0,
+          "y": 240
+        },
+        "parameters": {
+          "run_namespace": {
+            "kind": "literal",
+            "value": "stream-replace-per-execution"
+          },
+          "source_epoch": {
+            "kind": "literal",
+            "value": "stream-replace-per-execution"
+          },
+          "producer_instance": {
+            "kind": "literal",
+            "value": "annotations0"
+          },
+          "interval_ms": {
+            "kind": "literal",
+            "value": 350
+          }
+        }
+      },
+      {
+        "id": "annotations0",
+        "blockType": "gr::studio::StudioAnnotationSink<float64>",
+        "position": {
+          "x": 340,
+          "y": 240
+        },
+        "parameters": {
+          "transport": {
+            "kind": "literal",
+            "value": "websocket"
+          },
+          "endpoint": {
+            "kind": "literal",
+            "value": "ws://127.0.0.1:18090/annotations"
+          },
+          "run_namespace": {
+            "kind": "literal",
+            "value": "stream-replace-per-execution"
+          },
+          "producer_instance": {
+            "kind": "literal",
+            "value": "annotations0"
+          }
+        }
+      }
+    ],
+    "edges": [
+      {
+        "id": "edge-0",
+        "source": {
+          "nodeId": "synthetic0",
+          "portId": "out"
+        },
+        "target": {
+          "nodeId": "spectrum0",
+          "portId": "in"
+        }
+      },
+      {
+        "id": "edge-1",
+        "source": {
+          "nodeId": "synthetic0",
+          "portId": "out"
+        },
+        "target": {
+          "nodeId": "waterfall0",
+          "portId": "in"
+        }
+      },
+      {
+        "id": "edge-2",
+        "source": {
+          "nodeId": "syntheticAnnotations0",
+          "portId": "out"
+        },
+        "target": {
+          "nodeId": "annotations0",
+          "portId": "in"
+        }
+      }
+    ]
+  }
+}
