@@ -187,6 +187,43 @@ void qualifyBoundedSubscriberRecovery() {
     assert(store.subscriberResyncs() == 0);
 }
 int main(int argc, char** argv) {
+    {
+        Store epochs;
+        auto  c            = config();
+        c.source_epoch_key = "observation_epoch";
+        epochs.configure(c);
+        auto d                                     = spectrum(8, 1);
+        d.meta_information[0]["observation_epoch"] = std::string("1/1");
+        assert(epochs.push(d));
+        auto old                                   = epochs.snapshot();
+        d.meta_information[0]["observation_epoch"] = std::string("1/2");
+        assert(epochs.push(d));
+        auto fresh = epochs.snapshot();
+        assert(fresh->rows.size() == 1 && fresh->rows[0]->source_epoch == "test-run/1/2");
+        assert(fresh->stream_epoch != old->stream_epoch && fresh->rows[0]->reset);
+    }
+    // Admit only the exact relative digital-power contracts, without conversion.
+    for (const auto& [quantity, unit] : std::vector<std::pair<std::string, std::string>>{{"relative digital power", "dB re 1 digital power"}, {"relative digital power", "digital power"}, {"relative digital power spectral density", "digital power/Hz"}}) {
+        Store relative;
+        relative.configure(config());
+        auto d                                        = spectrum(8);
+        d.signal_quantities                           = {quantity};
+        d.signal_units                                = {unit};
+        d.meta_information[0]["timestamp_provenance"] = std::string("unknown");
+        assert(relative.push(d));
+        auto t = relative.snapshot();
+        assert(t->grid->unit == unit && t->grid->x == d.axis_values[0]);
+        assert(t->rows[0]->power == d.signal_values && !t->rows[0]->unix_ns);
+        assert(t->rows[0]->sequence == 9007199254740993ULL);
+        for (const auto& bad : std::vector<std::pair<std::string, std::string>>{{quantity, "dBm"}, {"power", unit}, {"unknown", unit}}) {
+            Store invalid;
+            invalid.configure(config());
+            d.signal_quantities = {bad.first};
+            d.signal_units      = {bad.second};
+            assert(!invalid.push(d));
+        }
+    }
+
     qualifyAnnotationRetention();
     qualifyBoundedSubscriberRecovery();
     // A generic producer can send observations and annotations over one sink

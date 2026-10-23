@@ -33,24 +33,25 @@ struct StudioDataSetWaterfallSink : Block<StudioDataSetWaterfallSink<T>> {
     Annotated<std::string, "scope_mode",
         Doc<"configured: use graph scope; producer: adopt explicit native "
             "data identity">>
-                                                       scope_mode               = "configured";
-    Annotated<std::string, "run_namespace">            run_namespace            = "";
-    Annotated<std::string, "source_epoch">             source_epoch             = "";
-    Annotated<std::string, "producer_instance">        producer_instance        = "waterfall";
-    Annotated<std::string, "source_id_key">            source_id_key            = "source_id";
-    Annotated<std::string, "acquisition_id_key">       acquisition_id_key       = "acquisition_id";
-    Annotated<std::string, "sequence_key">             sequence_key             = "sequence";
-    Annotated<std::string, "coordinate_model_key">     coordinate_model_key     = "coordinate_model";
-    Annotated<std::string, "timestamp_provenance_key"> timestamp_provenance_key = "timestamp_provenance";
-    Annotated<std::string, "timestamp_raw_text_key">   timestamp_raw_text_key   = "timestamp_raw_text";
-    Annotated<std::string, "timestamp_unix_ns_key">    timestamp_unix_ns_key    = "timestamp_unix_ns";
-    Annotated<std::string, "validity_key">             validity_key             = "validity";
-    Annotated<std::string, "coverage_key">             coverage_key             = "coverage";
-    std::uint64_t                                      annotation_items = 0, annotation_publication_cursor = 0, rejected_annotations = 0, annotation_capacity_evictions = 0, subscriber_resyncs = 0;
-    std::uint64_t                                      accepted_items = 0, publication_cursor = 0, transport_drain_failures = 0;
-    std::string                                        last_error;
-    std::uint64_t                                      invalid_rows = 0, duplicate_rows = 0, late_rows = 0, conflicting_rows = 0, subscriber_overflows = 0;
-    GR_MAKE_REFLECTABLE(StudioDataSetWaterfallSink, subscriber_resyncs, annotation_max_items, annotation_max_bytes, annotation_capacity_evictions, scope_mode, in, annotations, annotation_items, annotation_publication_cursor, rejected_annotations, transport, endpoint, update_ms, signal_index, axis_index, max_rows, max_bytes, max_clients, pending_bytes_per_client, max_snapshot_bytes, run_namespace, source_epoch, producer_instance, source_id_key, acquisition_id_key, sequence_key, coordinate_model_key, timestamp_provenance_key, timestamp_raw_text_key, timestamp_unix_ns_key, validity_key, coverage_key, invalid_rows, duplicate_rows, late_rows, conflicting_rows, subscriber_overflows, last_error, accepted_items, publication_cursor, transport_drain_failures);
+                                                                                                                          scope_mode               = "configured";
+    Annotated<std::string, "run_namespace">                                                                               run_namespace            = "";
+    Annotated<std::string, "source_epoch">                                                                                source_epoch             = "";
+    Annotated<std::string, "producer_instance">                                                                           producer_instance        = "waterfall";
+    Annotated<std::string, "source_epoch_key", Doc<"Optional native epoch string selector, namespaced by run_namespace">> source_epoch_key         = "";
+    Annotated<std::string, "source_id_key">                                                                               source_id_key            = "source_id";
+    Annotated<std::string, "acquisition_id_key">                                                                          acquisition_id_key       = "acquisition_id";
+    Annotated<std::string, "sequence_key">                                                                                sequence_key             = "sequence";
+    Annotated<std::string, "coordinate_model_key">                                                                        coordinate_model_key     = "coordinate_model";
+    Annotated<std::string, "timestamp_provenance_key">                                                                    timestamp_provenance_key = "timestamp_provenance";
+    Annotated<std::string, "timestamp_raw_text_key">                                                                      timestamp_raw_text_key   = "timestamp_raw_text";
+    Annotated<std::string, "timestamp_unix_ns_key">                                                                       timestamp_unix_ns_key    = "timestamp_unix_ns";
+    Annotated<std::string, "validity_key">                                                                                validity_key             = "validity";
+    Annotated<std::string, "coverage_key">                                                                                coverage_key             = "coverage";
+    std::uint64_t                                                                                                         annotation_items = 0, annotation_publication_cursor = 0, rejected_annotations = 0, annotation_capacity_evictions = 0, subscriber_resyncs = 0;
+    std::uint64_t                                                                                                         accepted_items = 0, publication_cursor = 0, transport_drain_failures = 0;
+    std::string                                                                                                           last_error;
+    std::uint64_t                                                                                                         invalid_rows = 0, duplicate_rows = 0, late_rows = 0, conflicting_rows = 0, subscriber_overflows = 0;
+    GR_MAKE_REFLECTABLE(StudioDataSetWaterfallSink, subscriber_resyncs, annotation_max_items, annotation_max_bytes, annotation_capacity_evictions, scope_mode, in, annotations, annotation_items, annotation_publication_cursor, rejected_annotations, transport, endpoint, update_ms, signal_index, axis_index, max_rows, max_bytes, max_clients, pending_bytes_per_client, max_snapshot_bytes, run_namespace, source_epoch, source_epoch_key, producer_instance, source_id_key, acquisition_id_key, sequence_key, coordinate_model_key, timestamp_provenance_key, timestamp_raw_text_key, timestamp_unix_ns_key, validity_key, coverage_key, invalid_rows, duplicate_rows, late_rows, conflicting_rows, subscriber_overflows, last_error, accepted_items, publication_cursor, transport_drain_failures);
     using Block<StudioDataSetWaterfallSink<T>>::Block;
     void start() {
         if (scope_mode.value != "configured" && scope_mode.value != "producer") {
@@ -76,6 +77,7 @@ struct StudioDataSetWaterfallSink : Block<StudioDataSetWaterfallSink<T>> {
         c.run_namespace             = run_namespace;
         c.source_epoch              = source_epoch;
         c.producer_instance         = producer_instance;
+        c.source_epoch_key          = source_epoch_key;
         c.source_key                = source_id_key;
         c.acquisition_key           = acquisition_id_key;
         c.sequence_key              = sequence_key;

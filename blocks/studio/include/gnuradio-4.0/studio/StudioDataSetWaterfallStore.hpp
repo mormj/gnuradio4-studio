@@ -42,6 +42,8 @@ struct Config {
     std::size_t annotation_max_items = 10000, annotation_max_bytes = 64 * 1024 * 1024;
     std::size_t max_clients = 8, queue_bytes = 4 * 1024 * 1024, snapshot_bytes = 128 * 1024 * 1024;
     std::string run_namespace, source_epoch, producer_instance                 = "waterfall";
+    std::string source_epoch_key; // Optional native epoch string, scoped by
+                                  // run_namespace.
     std::string source_key = "source_id", acquisition_key = "acquisition_id", sequence_key = "sequence";
     std::string model_key = "coordinate_model", provenance_key = "timestamp_provenance", raw_time_key = "timestamp_raw_text", unix_ns_key = "timestamp_unix_ns";
     std::string validity_key = "validity", coverage_key = "coverage";
@@ -302,7 +304,15 @@ public:
             }
             bounded(d.signal_units[si]);
             constexpr std::string_view powerUnits[] = {"W", "mW", "uW", "nW", "pW", "dBW", "dBm", "dBuW", "dB"};
-            if (std::ranges::find(powerUnits, d.signal_units[si]) == std::end(powerUnits) || si >= d.signal_quantities.size() || d.signal_quantities[si] != "power") {
+            if (si >= d.signal_quantities.size()) {
+                throw std::invalid_argument("missing power quantity");
+            }
+            const auto& quantity    = d.signal_quantities[si];
+            const auto& unit        = d.signal_units[si];
+            const bool  absolute    = quantity == "power" && std::ranges::find(powerUnits, unit) != std::end(powerUnits);
+            const bool  relative    = quantity == "relative digital power" && (unit == "digital power" || unit == "dB re 1 digital power");
+            const bool  relativePsd = quantity == "relative digital power spectral density" && unit == "digital power/Hz";
+            if (!absolute && !relative && !relativePsd) {
                 throw std::invalid_argument("unsupported power quantity/unit");
             }
             const auto& x = d.axis_values[ai];
@@ -347,6 +357,12 @@ public:
                     throw std::invalid_argument("conflicting source observation sequence");
                 }
             } else {
+                if (!config.source_epoch_key.empty()) {
+                    auto nativeEpoch = str(m, config.source_epoch_key);
+                    bounded(nativeEpoch);
+                    r->source_epoch = config.run_namespace + "/" + nativeEpoch;
+                    bounded(r->source_epoch);
+                }
                 r->source      = str(m, config.source_key);
                 r->acquisition = str(m, config.acquisition_key);
                 bounded(r->source);

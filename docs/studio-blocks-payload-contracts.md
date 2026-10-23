@@ -389,3 +389,14 @@ This clarifies the DataSet wire representation; older Studio vector parsers requ
 numeric pairs and reject nullable frames. Consumers must explicitly support nullable power;
 older consumers need nullable handling before displaying sparse spectra. No change
 to the separate `series2d-xy-json-v1` contract is implied.
+
+### Relative digital-power waterfall inputs
+
+The existing `dataset-waterfall-json-v1` store also accepts precisely the generic
+quantity/unit pairs: `relative digital power` with `digital power` or
+`dB re 1 digital power`, and `relative digital power spectral density` with
+`digital power/Hz`. Values and textual units are preserved without conversion.
+Existing absolute-power admission is unchanged; mismatched/unknown pairs fail.
+The optional `source_epoch_key` selects a native string epoch, scoped by the
+configured `run_namespace`; changes reset retained rows and stream state. Its
+empty default preserves existing configured/producer identity behavior.
