@@ -61,6 +61,12 @@ void testDefaultTransportAndCadence() {
     assert(block.n_inputs == 1UZ);
     assert(block.in.size() == 1UZ);
     block.settings().init();
+    const auto* capabilities = block.meta_information.value.at("gr:capabilities").get_if<gr::property_map>();
+    assert(capabilities != nullptr);
+    const auto* visualization = capabilities->at("studio:visualization").get_if<gr::property_map>();
+    assert(visualization != nullptr);
+    assert(visualization->at("version").value_or(0U) == 1U);
+    assert(visualization->at("payload_format").value_or(std::string_view{}) == "series-window-json-v1");
     assert(block.meta_information.value.contains("n_inputs::port_count_for"));
     assert(block.meta_information.value.at("n_inputs::update_policy").value_or(std::string_view{}) == "topology");
     assert(block.meta_information.value.at("autoscale::update_policy").value_or(std::string_view{}) == "live");
