@@ -108,7 +108,6 @@ function collapsedDynamicRenderedPort(schemaPort: SchemaPort): RenderedPort {
 function expandedDynamicRenderedPorts(
   schemaPort: SchemaPort,
   count: number,
-  inference: 'authoritative' | 'inferred',
   connectedPortIds: string[] = [],
 ): RenderedPort[] {
   const visibleCount = schemaPort.cardinalityKind === 'dynamic' ? Math.min(count, DEFAULT_DYNAMIC_PORT_UI_CAP) : count;
@@ -129,7 +128,7 @@ function expandedDynamicRenderedPorts(
     handleId: toReactFlowHandleId(renderHandlePortId(schemaPort, index)),
     sourceSchemaName: schemaPort.name,
     cardinalityKind: 'dynamic',
-    inference,
+    inference: 'authoritative',
     connectable: true,
     typeName: schemaPort.typeName,
     isOptional: schemaPort.isOptional,
@@ -148,7 +147,7 @@ function resolveOne(schemaPort: SchemaPort, parameterValues: Record<string, stri
   if (schemaPort.schemaVersion === 1 && schemaPort.collectionKind === 'fixed') {
     const extent = normalizePortCount(schemaPort.fixedExtent);
     if (extent === null) return [collapsedDynamicRenderedPort(schemaPort)];
-    return expandedDynamicRenderedPorts(schemaPort, extent, 'authoritative')
+    return expandedDynamicRenderedPorts(schemaPort, extent)
       .map((port) => ({ ...port, cardinalityKind: 'fixed', semanticPortCount: extent }));
   }
   if (schemaPort.cardinalityKind === 'fixed') {
@@ -158,7 +157,7 @@ function resolveOne(schemaPort: SchemaPort, parameterValues: Record<string, stri
   const count = explicitDynamicCount(schemaPort, parameterValues);
   return count === null
     ? [collapsedDynamicRenderedPort(schemaPort)]
-    : expandedDynamicRenderedPorts(schemaPort, count, 'authoritative', connectedPortIds);
+    : expandedDynamicRenderedPorts(schemaPort, count, connectedPortIds);
 }
 
 export function resolveRenderedPorts({

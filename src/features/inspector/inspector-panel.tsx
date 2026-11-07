@@ -110,7 +110,6 @@ function toSchemaPorts(details: NonNullable<ReturnType<typeof useBlockDetailsQue
       portKind: port.portKind,
       isSynchronous: port.isSynchronous,
       schemaVersion: port.schemaVersion,
-      isExplicitDynamicCollection: port.isExplicitDynamicCollection,
       currentPortCount: port.currentPortCount,
       renderPortCount: port.renderPortCount,
       minPortCount: port.minPortCount,
