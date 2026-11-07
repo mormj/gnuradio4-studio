@@ -742,6 +742,7 @@ export function StudioPage() {
           if (
             !shouldPropagateResolvedRuntimeSetting({
               name: parameter.name,
+              updatePolicy: parameter.updatePolicy,
               bindingKind: resolvedParameter.binding.kind,
             })
           ) {

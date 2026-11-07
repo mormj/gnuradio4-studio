@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { ApiClientError } from '../../lib/api/client';
 import {
   resolveRuntimeSettingsAvailability,
+  canEditRuntimeSetting,
   shouldApplyRuntimeSettingImmediately,
   shouldPropagateResolvedRuntimeSetting,
   toRuntimeSettingsErrorMessage,
@@ -146,26 +147,24 @@ describe('runtime-settings-model', () => {
     ).toBe('Timed out while waiting for the runtime settings reply.');
   });
 
-  it('applies live visualization settings immediately', () => {
-    expect(shouldApplyRuntimeSettingImmediately('autoscale')).toBe(true);
-    expect(shouldApplyRuntimeSettingImmediately('update_ms')).toBe(true);
-    expect(shouldApplyRuntimeSettingImmediately('poll_ms')).toBe(true);
-    expect(shouldApplyRuntimeSettingImmediately('persistence')).toBe(true);
-    expect(shouldApplyRuntimeSettingImmediately('phosphor_intensity')).toBe(true);
-    expect(shouldApplyRuntimeSettingImmediately('phosphor_decay_ms')).toBe(true);
-    expect(shouldApplyRuntimeSettingImmediately('x_min')).toBe(true);
-    expect(shouldApplyRuntimeSettingImmediately('x_max')).toBe(true);
-    expect(shouldApplyRuntimeSettingImmediately('y_min')).toBe(true);
-    expect(shouldApplyRuntimeSettingImmediately('y_max')).toBe(true);
-    expect(shouldApplyRuntimeSettingImmediately('z_min')).toBe(true);
-    expect(shouldApplyRuntimeSettingImmediately('z_max')).toBe(true);
-    expect(shouldApplyRuntimeSettingImmediately('sample_rate')).toBe(false);
-    expect(shouldApplyRuntimeSettingImmediately('endpoint')).toBe(false);
+  it('keeps stopped-only and topology settings out of running edits', () => {
+    const writable = { mutable: true, readOnly: false };
+    expect(canEditRuntimeSetting({ ...writable, updatePolicy: 'live' })).toBe(true);
+    expect(canEditRuntimeSetting({ ...writable, updatePolicy: 'stopped' })).toBe(false);
+    expect(canEditRuntimeSetting({ ...writable, updatePolicy: 'topology' })).toBe(false);
+    expect(canEditRuntimeSetting({ ...writable, readOnly: true, updatePolicy: 'live' })).toBe(false);
   });
 
-  it('propagates resolved expression settings for live variable controls', () => {
-    expect(shouldPropagateResolvedRuntimeSetting({ name: 'alpha', bindingKind: 'expression' })).toBe(true);
-    expect(shouldPropagateResolvedRuntimeSetting({ name: 'sample_rate', bindingKind: 'literal' })).toBe(false);
-    expect(shouldPropagateResolvedRuntimeSetting({ name: 'poll_ms', bindingKind: 'literal' })).toBe(true);
+  it('uses declared update policies rather than parameter names', () => {
+    expect(shouldApplyRuntimeSettingImmediately('live')).toBe(true);
+    expect(shouldApplyRuntimeSettingImmediately('topology')).toBe(false);
+    expect(shouldApplyRuntimeSettingImmediately('stopped')).toBe(false);
+    expect(shouldApplyRuntimeSettingImmediately(undefined)).toBe(false);
+  });
+
+  it('does not propagate expressions without a live update declaration', () => {
+    expect(shouldPropagateResolvedRuntimeSetting({ name: 'alpha', bindingKind: 'expression' })).toBe(false);
+    expect(shouldPropagateResolvedRuntimeSetting({ name: 'anything', bindingKind: 'expression', updatePolicy: 'live' })).toBe(true);
+    expect(shouldPropagateResolvedRuntimeSetting({ name: 'count', bindingKind: 'expression', updatePolicy: 'topology' })).toBe(false);
   });
 });

@@ -9,6 +9,7 @@ import {
 import { isReadOnlyRuntimeMutability } from '../utils/parameter-groups';
 
 export type BlockParameterMeta = {
+  updatePolicy?: 'live' | 'stopped' | 'topology';
   unit?: string;
   visible?: boolean;
   minimum?: number;
@@ -81,6 +82,7 @@ function normalizeParameter(param: ParameterMetaDto): BlockParameterMeta {
     maximum: param.maximum,
     description: param.summary,
     defaultValue: toText(param.default),
+    updatePolicy: param.update_policy,
     mutable: !readOnly,
     readOnly,
     valueType,

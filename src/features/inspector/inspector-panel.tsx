@@ -11,6 +11,7 @@ import { useBlockDetailsQuery } from './hooks/use-block-details-query';
 import { useRuntimeBlockSettings } from './hooks/use-runtime-block-settings';
 import { useSchedulersQuery } from './hooks/use-schedulers-query';
 import {
+  canEditRuntimeSetting,
   resolveRuntimeSettingsAvailability,
   toRuntimeSettingsErrorMessage,
 } from './runtime-settings-model';
@@ -74,19 +75,6 @@ function SummaryValue({ children }: { children: ReactNode }) {
 function SectionCard({ children }: { children: ReactNode }) {
   return <div className="rounded-md border border-slate-700 bg-slate-900/60 p-3 space-y-2">{children}</div>;
 }
-
-const LOCAL_PLOT_SETTING_NAMES = new Set([
-  'autoscale',
-  'persistence',
-  'phosphor_intensity',
-  'phosphor_decay_ms',
-  'x_min',
-  'x_max',
-  'y_min',
-  'y_max',
-  'z_min',
-  'z_max',
-]);
 
 function EmptyState({ children }: { children: ReactNode }) {
   return (
@@ -183,7 +171,7 @@ function RuntimeSettingsCard({
   }, [query.data, uniqueName]);
 
   const savePatch = async (name: string, value: RuntimeSettingsValue) => {
-    if (!sessionId || !uniqueName) {
+    if (!sessionId || !uniqueName || !canEditRuntimeSetting(blockDetails?.parameters.find((parameter) => parameter.name === name))) {
       return;
     }
 
@@ -197,7 +185,7 @@ function RuntimeSettingsCard({
       });
       if (
         selectedBlock &&
-        LOCAL_PLOT_SETTING_NAMES.has(name.trim().toLowerCase()) &&
+        blockDetails?.parameters.find((parameter) => parameter.name === name)?.updatePolicy === 'live' &&
         (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean' || value === null)
       ) {
         updateNodeParameterBindings(selectedBlock.instanceId, {
@@ -469,7 +457,7 @@ function RuntimeSettingsCard({
           {editableEntries.length > 0 && (
             <div className="space-y-2">
               <p className="text-[11px] font-semibold uppercase tracking-wide text-emerald-300">Editable</p>
-              {editableEntries.map(([name, value]) => renderRuntimeValue(name, value, true))}
+              {editableEntries.map(([name, value]) => renderRuntimeValue(name, value, canEditRuntimeSetting(parameterMetaByName.get(name))))}
             </div>
           )}
 

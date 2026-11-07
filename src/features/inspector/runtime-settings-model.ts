@@ -45,30 +45,20 @@ export function resolveRuntimeSettingsAvailability(params: {
   };
 }
 
-const LIVE_UPDATABLE_SETTING_NAMES = new Set([
-  'autoscale',
-  'poll_ms',
-  'update_ms',
-  'persistence',
-  'phosphor_intensity',
-  'phosphor_decay_ms',
-  'x_min',
-  'x_max',
-  'y_min',
-  'y_max',
-  'z_min',
-  'z_max',
-]);
-
-export function shouldApplyRuntimeSettingImmediately(name: string): boolean {
-  return LIVE_UPDATABLE_SETTING_NAMES.has(name.trim().toLowerCase());
+export function shouldApplyRuntimeSettingImmediately(updatePolicy?: string): boolean {
+  return updatePolicy === 'live';
 }
 
 export function shouldPropagateResolvedRuntimeSetting(params: {
   name: string;
   bindingKind: 'literal' | 'expression';
+  updatePolicy?: string;
 }): boolean {
-  return params.bindingKind === 'expression' || shouldApplyRuntimeSettingImmediately(params.name);
+  return shouldApplyRuntimeSettingImmediately(params.updatePolicy);
+}
+
+export function canEditRuntimeSetting(parameter?: { mutable: boolean; readOnly: boolean; updatePolicy?: string }): boolean {
+  return Boolean(parameter?.mutable && !parameter.readOnly && parameter.updatePolicy !== 'stopped' && parameter.updatePolicy !== 'topology');
 }
 
 export function toRuntimeSettingsErrorMessage(error: unknown): string {
