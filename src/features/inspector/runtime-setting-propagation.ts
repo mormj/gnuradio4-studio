@@ -14,6 +14,8 @@ export function resolveRuntimeSettingPropagation(
     const details = detailsByType.get(node.blockTypeId);
     const patch: RuntimeSettingsObject = {};
     for (const [name, value] of Object.entries(resolved.parametersByNodeId[node.instanceId] ?? {})) {
+      // Variable overrides must not replay authored literals over manually edited runtime controls.
+      if (value.binding.kind !== 'expression') continue;
       const parameter = details?.parameters.find((entry) => entry.name === name);
       const reason = value.value === undefined || (value.state !== 'resolved' && value.state !== 'literal')
         ? value.reason ?? 'Expression is unresolved.'
