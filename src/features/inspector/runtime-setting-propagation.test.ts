@@ -21,6 +21,8 @@ describe('resolved runtime variable propagation', () => {
 
   it('stages only eligible dependents, explains mixed dependencies, and preserves the saved graph', async () => {
     const { document, node, details } = setup();
+    document.graph.nodes[0].parameters.literal = { kind: 'literal', value: 123 };
+    details.parameters.push({ name: 'literal', label: 'Literal', mutable: true, readOnly: false, valueType: 'float', valueKind: 'scalar', updatePolicy: 'live' });
     const before = JSON.stringify(document);
     const resolved = resolveGraphVariables(document, { variableOverridesByName: { frequency: { kind: 'literal', value: 25 } } });
     const plan = resolveRuntimeSettingPropagation([node], new Map([['Generator', details]]), resolved);
