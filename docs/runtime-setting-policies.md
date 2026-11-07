@@ -14,6 +14,13 @@ lack a live declaration. A successful request is described as staged, not as
 confirmed application. Unresolved expressions never supply a fallback value.
 Runtime variable overrides remain separate from the saved graph.
 
+Boolean presentation conditions also apply to direct parameter widgets. Runtime
+widgets use the controller in the same block's runtime settings snapshot, even
+when the authored graph differs. False or unresolved conditions disable writes
+while leaving reads, stored values, and the widget intact. A controller update
+reevaluates eligibility through the existing settings query cache; reenabling a
+field does not send an update. Conditions do not change backend acceptance.
+
 Supported adoption is deliberately bounded:
 
 | Use case | Policy and workflow |

@@ -153,7 +153,7 @@ function ControlWidgetField({
     widget.binding.kind === 'parameter' ? widget.binding.nodeId : undefined,
     canRead,
   );
-  const writeReason = controlWidgetWriteReason(widget);
+  const writeReason = controlWidgetWriteReason(widget, query.data);
   const canWrite = writeReason === undefined;
   const writeTarget = JSON.stringify([widget.runtimeSessionId, widget.binding]);
   const writeEligibilityRef = useRef({ canWrite, writeTarget });

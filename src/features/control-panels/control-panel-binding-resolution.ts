@@ -10,6 +10,7 @@ import type {
 import type { ExecutionState, GraphDriftState } from '../runtime-session/store/runtimeSessionStore';
 import type { ResolvedGraphVariables } from '../variables/model/resolveGraphVariables';
 import { runtimeSettingEditReason } from '../inspector/runtime-settings-model';
+import { isParameterEnabled, parameterConditionDescription } from '../../lib/utils/parameter-rules';
 
 export type ControlWidgetBindingState =
   | 'missing_node'
@@ -47,11 +48,16 @@ export type ResolvedControlWidget = {
   variableName?: string;
 };
 
-export function controlWidgetWriteReason(widget: ResolvedControlWidget): string | undefined {
+export function controlWidgetWriteReason(widget: ResolvedControlWidget, runtimeValues: Readonly<Record<string, unknown>> = {}): string | undefined {
   if (widget.state !== 'ready') return widget.reason ?? 'Control is unavailable.';
   if (widget.binding.kind === 'variable') return undefined;
   if (!widget.runtimeSessionId) return 'No linked session is available for live control.';
-  return runtimeSettingEditReason(widget.parameterMeta);
+  const policyReason = runtimeSettingEditReason(widget.parameterMeta);
+  if (policyReason) return policyReason;
+  if (widget.parameterMeta && !isParameterEnabled(widget.parameterMeta, runtimeValues)) {
+    return parameterConditionDescription(widget.parameterMeta);
+  }
+  return undefined;
 }
 
 function isNumericTypeName(valueType?: string): boolean {
