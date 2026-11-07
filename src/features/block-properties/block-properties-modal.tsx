@@ -189,11 +189,11 @@ export function BlockPropertiesModal({ instanceId, onClose }: BlockPropertiesMod
       parameterRows.filter(
         (parameter) =>
           !isAdvancedParameterMeta(parameter) &&
-          !isDescriptorBindingHiddenParameter(block?.blockTypeId ?? '', parameter.name) &&
+          !isDescriptorBindingHiddenParameter(block?.blockTypeId ?? '', parameter.name, blockDetailsQuery.data?.studioBinding) &&
           !parameter.readOnly &&
           parameter.mutable,
       ),
-    [block?.blockTypeId, parameterRows],
+    [block?.blockTypeId, parameterRows, blockDetailsQuery.data],
   );
   const readOnlyParameters = useMemo(
     () =>
@@ -207,11 +207,11 @@ export function BlockPropertiesModal({ instanceId, onClose }: BlockPropertiesMod
       parameterRows.filter(
         (parameter) =>
           isAdvancedParameterMeta(parameter) &&
-          !isDescriptorBindingHiddenParameter(block?.blockTypeId ?? '', parameter.name) &&
+          !isDescriptorBindingHiddenParameter(block?.blockTypeId ?? '', parameter.name, blockDetailsQuery.data?.studioBinding) &&
           !parameter.readOnly &&
           parameter.mutable,
       ),
-    [block?.blockTypeId, parameterRows],
+    [block?.blockTypeId, parameterRows, blockDetailsQuery.data],
   );
   const canCommit = isDraftInitialized && !blockDetailsQuery.isPending && !blockDetailsQuery.isError;
   const virtualRouteIssues = useMemo(() => {
@@ -435,7 +435,7 @@ export function BlockPropertiesModal({ instanceId, onClose }: BlockPropertiesMod
 
   const canonicalDisplayName = toCanonicalBlockDisplayName(block.displayName, block.blockTypeId);
   const blockInstanceId = block.instanceId;
-  const descriptorBindingAuthoringMessage = getDescriptorBindingAuthoringMessage(block.blockTypeId);
+  const descriptorBindingAuthoringMessage = getDescriptorBindingAuthoringMessage(block.blockTypeId, blockDetailsQuery.data?.studioBinding);
 
   return (
     <div

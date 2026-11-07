@@ -461,7 +461,7 @@ function serializeGraphDocumentToInlineGrc(
         });
       }
 
-      const studioBinding = lookupStudioKnownBlockBinding(node.blockType);
+      const studioBinding = lookupStudioKnownBlockBinding(node.blockType, blockDetails?.studioBinding);
       if (studioBinding && !parameterEntries.has('payload_format')) {
         // The control plane now requires authored stream metadata on Studio blocks.
         // Export the compatibility payload format explicitly so legacy graphs and

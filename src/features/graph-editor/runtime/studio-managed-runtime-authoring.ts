@@ -1,6 +1,7 @@
 import {
   buildStudioBindingView,
   lookupStudioKnownBlockBinding,
+  resolveStudioSeriesCount,
   type StudioBindingView,
   type StudioKnownBlockBinding,
   type StudioTransportMode,
@@ -23,7 +24,8 @@ function isSupportedTransport(value: string): value is StudioTransportMode {
   return value === 'http_snapshot' || value === 'http_poll' || value === 'zmq_sub' || value === 'websocket';
 }
 
-export function isDescriptorBasedBindingFamily(blockTypeId: string): boolean {
+export function isDescriptorBasedBindingFamily(blockTypeId: string, reflected?: StudioKnownBlockBinding | null): boolean {
+  if (reflected !== undefined) return reflected?.routing === 'session';
   return (
     blockTypeId.startsWith('gr::studio::StudioSeriesSink<') ||
     blockTypeId.startsWith('gr::studio::Studio2DSeriesSink<') ||
@@ -35,8 +37,8 @@ export function isDescriptorBasedBindingFamily(blockTypeId: string): boolean {
   );
 }
 
-export function isDescriptorBindingHiddenParameter(blockTypeId: string, parameterName: string): boolean {
-  return isDescriptorBasedBindingFamily(blockTypeId) && parameterName === 'endpoint';
+export function isDescriptorBindingHiddenParameter(blockTypeId: string, parameterName: string, reflected?: StudioKnownBlockBinding | null): boolean {
+  return isDescriptorBasedBindingFamily(blockTypeId, reflected) && parameterName === (lookupStudioKnownBlockBinding(blockTypeId, reflected)?.parameters.endpoint ?? 'endpoint');
 }
 
 export function getAuthoringParameterLabel(blockTypeId: string, parameterName: string, label: string): string {
@@ -45,8 +47,8 @@ export function getAuthoringParameterLabel(blockTypeId: string, parameterName: s
   return label;
 }
 
-export function getDescriptorBindingAuthoringMessage(blockTypeId: string): string | null {
-  if (!isDescriptorBasedBindingFamily(blockTypeId)) {
+export function getDescriptorBindingAuthoringMessage(blockTypeId: string, reflected?: StudioKnownBlockBinding | null): string | null {
+  if (!isDescriptorBasedBindingFamily(blockTypeId, reflected)) {
     return null;
   }
 
@@ -56,18 +58,19 @@ export function getDescriptorBindingAuthoringMessage(blockTypeId: string): strin
 export function buildStudioAuthoringBindingView(
   blockTypeId: string,
   parameterValues: Record<string, string>,
+  reflected?: StudioKnownBlockBinding | null,
 ): StudioBindingView {
-  if (!isDescriptorBasedBindingFamily(blockTypeId)) {
-    return buildStudioBindingView(blockTypeId, parameterValues);
+  if (!isDescriptorBasedBindingFamily(blockTypeId, reflected)) {
+    return buildStudioBindingView(blockTypeId, parameterValues, reflected);
   }
 
-  const binding = lookupStudioKnownBlockBinding(blockTypeId);
+  const binding = lookupStudioKnownBlockBinding(blockTypeId, reflected);
   if (!binding) {
-    return buildStudioBindingView(blockTypeId, parameterValues);
+    return buildStudioBindingView(blockTypeId, parameterValues, reflected);
   }
 
   const transportRaw = normalizeString(parameterValues[binding.parameters.transport]);
-  const authoringMessage = getDescriptorBindingAuthoringMessage(blockTypeId) as string;
+  const authoringMessage = getDescriptorBindingAuthoringMessage(blockTypeId, reflected) as string;
 
   if (!transportRaw) {
     return {
@@ -111,7 +114,7 @@ export function buildStudioAuthoringBindingView(
     transport: transportRaw,
     updateMs: cadenceParameter ? parseInteger(parameterValues[cadenceParameter]) : undefined,
     sampleRate: binding.parameters.sampleRate ? parseInteger(parameterValues[binding.parameters.sampleRate]) : undefined,
-    channels: binding.parameters.channels ? parseInteger(parameterValues[binding.parameters.channels]) : undefined,
+    channels: resolveStudioSeriesCount(binding, parameterValues),
     bufferMs: binding.parameters.bufferMs ? parseInteger(parameterValues[binding.parameters.bufferMs]) : undefined,
     topic: binding.parameters.topic ? normalizeString(parameterValues[binding.parameters.topic]) || undefined : undefined,
     reason: authoringMessage,
@@ -121,10 +124,11 @@ export function buildStudioAuthoringBindingView(
 export function buildStudioDescriptorAuthoringView(
   blockTypeId: string,
   parameterValues: Record<string, string>,
+  reflected?: StudioKnownBlockBinding | null,
 ): StudioBindingView {
-  const binding = lookupStudioKnownBlockBinding(blockTypeId);
+  const binding = lookupStudioKnownBlockBinding(blockTypeId, reflected);
   if (!binding) {
-    return buildStudioBindingView(blockTypeId, parameterValues);
+    return buildStudioBindingView(blockTypeId, parameterValues, reflected);
   }
 
   return buildDescriptorAuthoringView(binding, blockTypeId, parameterValues);
@@ -136,7 +140,7 @@ function buildDescriptorAuthoringView(
   parameterValues: Record<string, string>,
 ): StudioBindingView {
   const transportRaw = normalizeString(parameterValues[binding.parameters.transport]);
-  const authoringMessage = getDescriptorBindingAuthoringMessage(blockTypeId) ?? undefined;
+  const authoringMessage = getDescriptorBindingAuthoringMessage(blockTypeId, binding) ?? undefined;
 
   if (!transportRaw) {
     return {
@@ -180,7 +184,7 @@ function buildDescriptorAuthoringView(
     transport: transportRaw,
     updateMs: cadenceParameter ? parseInteger(parameterValues[cadenceParameter]) : undefined,
     sampleRate: binding.parameters.sampleRate ? parseInteger(parameterValues[binding.parameters.sampleRate]) : undefined,
-    channels: binding.parameters.channels ? parseInteger(parameterValues[binding.parameters.channels]) : undefined,
+    channels: resolveStudioSeriesCount(binding, parameterValues),
     bufferMs: binding.parameters.bufferMs ? parseInteger(parameterValues[binding.parameters.bufferMs]) : undefined,
     topic: binding.parameters.topic ? normalizeString(parameterValues[binding.parameters.topic]) || undefined : undefined,
     reason: authoringMessage,

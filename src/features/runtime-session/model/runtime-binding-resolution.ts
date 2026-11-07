@@ -12,6 +12,7 @@ import {
 
 type ResolveCurrentSessionStudioBindingArgs = {
   blockTypeId: string;
+  reflectedBinding?: StudioKnownBlockBinding | null;
   nodeInstanceId: string;
   parameterValues: Record<string, string>;
   session?: SessionRecord | null;
@@ -157,14 +158,14 @@ function validateStudioDescriptorPolicy(params: {
 export function resolveCurrentSessionStudioBindingView(
   args: ResolveCurrentSessionStudioBindingArgs,
 ): StudioBindingView {
-  const fallback = buildStudioBindingView(args.blockTypeId, args.parameterValues);
-  const knownBinding = lookupStudioKnownBlockBinding(args.blockTypeId);
+  const fallback = buildStudioBindingView(args.blockTypeId, args.parameterValues, args.reflectedBinding);
+  const knownBinding = lookupStudioKnownBlockBinding(args.blockTypeId, args.reflectedBinding);
 
   if (!knownBinding) {
     return fallback;
   }
 
-  const authoredBinding = buildStudioDescriptorAuthoringView(args.blockTypeId, args.parameterValues);
+  const authoredBinding = buildStudioDescriptorAuthoringView(args.blockTypeId, args.parameterValues, args.reflectedBinding);
   if (authoredBinding.status !== 'configured') {
     return authoredBinding;
   }
