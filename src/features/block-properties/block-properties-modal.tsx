@@ -1,3 +1,5 @@
+import { isParameterEnabled, parameterConditionDescription } from '../../lib/utils/parameter-rules';
+import { resolvePortParameterValues } from '../ports/model/resolvePortParameterValues';
 import { useEffect, useMemo, useState, type MouseEvent } from 'react';
 import type { BlockDetails, BlockParameterMeta } from '../../lib/api/block-details';
 import { isAdvancedParameter } from '../../lib/utils/parameter-groups';
@@ -53,6 +55,7 @@ export function getBlockParameterTypeLabel(parameter: BlockParameterMeta): strin
 export function getBlockParameterHoverTitle(parameter: BlockParameterMeta): string {
   return [parameter.description?.trim() || parameter.label,
     parameter.unit ? `Unit: ${parameter.unit}` : '',
+    parameterConditionDescription(parameter),
     parameter.minimum !== undefined ? `Minimum: ${parameter.minimum}` : '',
     parameter.maximum !== undefined ? `Maximum: ${parameter.maximum}` : '',
   ].filter(Boolean).join('\n');
@@ -111,11 +114,15 @@ export function BlockPropertiesModal({ instanceId, onClose }: BlockPropertiesMod
   const edges = useEditorStore((state) => state.edges);
   const updateNodeParameterBindings = useEditorStore((state) => state.updateNodeParameterBindings);
   const studioPanels = useEditorStore((state) => state.studioPanels);
+  const studioVariables = useEditorStore((state) => state.studioVariables);
   const setStudioPanels = useEditorStore((state) => state.setStudioPanels);
 
   const [activeTab, setActiveTab] = useState<ModalTab>('general');
   const [draftValues, setDraftValues] = useState<DraftMap>({});
   const [isDraftInitialized, setIsDraftInitialized] = useState(false);
+  const conditionValues = useMemo(() => block
+    ? resolvePortParameterValues([{ ...block, parameters: draftValues }], studioVariables)[block.instanceId]
+    : {}, [block, draftValues, studioVariables]);
   const [pendingControlParameter, setPendingControlParameter] = useState<BlockParameterMeta | null>(null);
 
   const blockDetailsQuery = useBlockDetailsQuery(block?.blockTypeId);
@@ -299,6 +306,7 @@ export function BlockPropertiesModal({ instanceId, onClose }: BlockPropertiesMod
   };
 
   const renderParameterValueInput = (parameter: BlockParameterMeta, disabled: boolean) => {
+    disabled = disabled || !isParameterEnabled(parameter, conditionValues);
     const currentValue = draftValues[parameter.name]?.value ?? parameter.defaultValue ?? '';
     const bindingKind = draftValues[parameter.name]?.bindingKind ?? 'literal';
     const isLiteral = bindingKind === 'literal';

@@ -9,6 +9,7 @@ import {
 import { isReadOnlyRuntimeMutability } from '../utils/parameter-groups';
 
 export type BlockParameterMeta = {
+  enabledWhen?: { parameter: string; value?: boolean };
   updatePolicy?: 'live' | 'stopped' | 'topology';
   unit?: string;
   visible?: boolean;
@@ -82,6 +83,9 @@ function normalizeParameter(param: ParameterMetaDto): BlockParameterMeta {
     maximum: param.maximum,
     description: param.summary,
     defaultValue: toText(param.default),
+    enabledWhen: param.enabled_when_parameter === undefined ? undefined : {
+      parameter: param.enabled_when_parameter, value: param.enabled_when_value,
+    },
     updatePolicy: param.update_policy,
     mutable: !readOnly,
     readOnly,

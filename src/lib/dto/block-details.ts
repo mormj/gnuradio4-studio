@@ -36,6 +36,8 @@ export const blockParameterDtoSchema = z
     visible: z.boolean().optional(),
     minimum: z.number().optional(),
     maximum: z.number().optional(),
+    enabled_when_parameter: z.string().min(1).optional(),
+    enabled_when_value: z.boolean().optional(),
     update_policy: z.enum(['live', 'stopped', 'topology']).optional(),
     runtime_mutability: z.string().optional(),
     value_kind: z.enum(['scalar', 'enum']).optional(),

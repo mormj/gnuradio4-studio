@@ -1,3 +1,4 @@
+import { isParameterEnabled, parameterConditionDescription } from '../../lib/utils/parameter-rules';
 import { resolvePortParameterValues } from '../ports/model/resolvePortParameterValues';
 import { useEffect, useMemo, useState, type KeyboardEvent, type ReactNode } from 'react';
 import { useQueries } from '@tanstack/react-query';
@@ -175,6 +176,8 @@ function RuntimeSettingsCard({
       return;
     }
 
+    const parameter = blockDetails?.parameters.find((entry) => entry.name === name);
+    if (parameter && !isParameterEnabled(parameter, query.data ?? {})) return;
     setSaveError(null);
     try {
       await mutation.mutateAsync({
@@ -268,7 +271,10 @@ function RuntimeSettingsCard({
 
   const renderRuntimeValue = (name: string, value: RuntimeSettingsValue, editable: boolean) => {
     const parameterMeta = parameterMetaByName.get(name);
-    const typeLabel = parameterMeta?.valueType ?? typeof value;
+    editable = editable && (!parameterMeta || isParameterEnabled(parameterMeta, runtimeValues));
+    const typeLabel = [parameterMeta?.valueType ?? typeof value,
+      parameterMeta ? parameterConditionDescription(parameterMeta) : '',
+    ].filter(Boolean).join(' · ');
     const enumChoices = parameterMeta?.enumChoices ?? [];
     const hasEnumChoices = enumChoices.length > 0;
 
