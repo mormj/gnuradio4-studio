@@ -15,7 +15,6 @@ describe('resolveRenderedPorts', () => {
       name: 'banana',
       direction: 'input',
       cardinalityKind: 'dynamic',
-      isExplicitDynamicCollection: true,
       renderPortCount: 3,
       minPortCount: 1,
       maxPortCount: 32,
@@ -76,7 +75,6 @@ describe('resolveRenderedPorts', () => {
       name: 'in',
       direction: 'input',
       cardinalityKind: 'dynamic',
-      isExplicitDynamicCollection: true,
       renderPortCount: 2,
       handleNameTemplate: 'in#${index}',
       sizeParameter: 'channels',
@@ -99,7 +97,6 @@ describe('resolveRenderedPorts', () => {
         name: 'banana',
         direction: 'input',
         cardinalityKind: 'dynamic',
-        isExplicitDynamicCollection: true,
         renderPortCount: 4,
         sizeParameter: 'n_inputs',
         minPortCount: 1,
@@ -116,7 +113,6 @@ describe('resolveRenderedPorts', () => {
       name: 'banana',
       direction: 'input',
       cardinalityKind: 'dynamic',
-      isExplicitDynamicCollection: true,
       renderPortCount: 5,
       sizeParameter: 'n_inputs',
       minPortCount: 1,
@@ -202,7 +198,7 @@ describe('reflected structural schema', () => {
   it('retains empty dynamic collection types without inventing handles', () => {
     const ports = resolveSingle({
       name: 'bank', direction: 'input', cardinalityKind: 'dynamic',
-      collectionKind: 'dynamic', schemaVersion: 1, isExplicitDynamicCollection: true,
+      collectionKind: 'dynamic', schemaVersion: 1,
       typeName: 'float64', isOptional: true, isSynchronous: false,
     }).inputs;
     expect(ports).toHaveLength(1);
