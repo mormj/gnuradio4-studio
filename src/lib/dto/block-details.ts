@@ -53,6 +53,7 @@ export const blockParameterDtoSchema = z
 
 export const blockDetailsDtoSchema = z
   .object({
+    capabilities: z.record(z.string(), z.unknown()).optional(),
     id: z.string(),
     name: z.string(),
     category: z.string().optional(),

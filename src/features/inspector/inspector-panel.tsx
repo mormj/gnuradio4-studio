@@ -526,12 +526,12 @@ function SelectionTab({
   const studioBinding = useMemo(
     () =>
       selectedBlock
-        ? buildStudioAuthoringBindingView(selectedBlock.blockTypeId, effectiveParameterValues)
+        ? buildStudioAuthoringBindingView(selectedBlock.blockTypeId, effectiveParameterValues, blockDetailsQuery.data?.studioBinding)
         : null,
-    [effectiveParameterValues, selectedBlock],
+    [effectiveParameterValues, selectedBlock, blockDetailsQuery.data],
   );
   const descriptorBindingAuthoringMessage = selectedBlock
-    ? getDescriptorBindingAuthoringMessage(selectedBlock.blockTypeId)
+    ? getDescriptorBindingAuthoringMessage(selectedBlock.blockTypeId, blockDetailsQuery.data?.studioBinding)
     : null;
 
   const renderedPorts =

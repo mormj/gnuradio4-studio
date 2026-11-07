@@ -1,3 +1,4 @@
+import type { BlockDetails } from '../../../lib/api/block-details';
 import { lookupStudioKnownBlockBinding } from '../../graph-editor/runtime/known-block-bindings';
 import type { StudioPanelKind, StudioPanelSpec } from '../../graph-document/model/studio-workspace';
 import { buildDisambiguatedPanelTitles } from './panel-titles';
@@ -39,13 +40,14 @@ function comparePanelSourceNodes(a: PanelSourceNode, b: PanelSourceNode): number
 
 export function deriveDefaultStudioPanelsFromNodes(
   nodes: readonly PanelSourceNode[],
+  detailsByType?: ReadonlyMap<string, BlockDetails>,
 ): StudioPanelSpec[] {
   const titlesByNodeId = buildDisambiguatedPanelTitles(nodes);
 
   return [...nodes]
     .sort(comparePanelSourceNodes)
     .flatMap((node) => {
-      const binding = lookupStudioKnownBlockBinding(node.blockTypeId);
+      const binding = lookupStudioKnownBlockBinding(node.blockTypeId, detailsByType?.get(node.blockTypeId)?.studioBinding);
       if (!binding) {
         return [];
       }

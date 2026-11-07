@@ -92,7 +92,7 @@ function buildParameterLines(
     .filter(
       (parameter: BlockParameterMeta) =>
         !isAdvancedParameter(parameter) &&
-        !isDescriptorBindingHiddenParameter(blockTypeId, parameter.name) &&
+        !isDescriptorBindingHiddenParameter(blockTypeId, parameter.name, details?.studioBinding) &&
         !parameter.readOnly &&
         parameter.mutable,
     )

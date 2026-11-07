@@ -1,3 +1,5 @@
+import { normalizeVisualizationCapability } from './visualization-capability';
+import type { StudioKnownBlockBinding } from '../../features/graph-editor/runtime/known-block-bindings';
 import { ApiClientError, jsonRequest } from './client';
 import {
   blockDetailsDtoSchema,
@@ -56,6 +58,7 @@ export type BlockPortMeta = {
 };
 
 export type BlockDetails = {
+  studioBinding?: StudioKnownBlockBinding | null;
   blockTypeId: string;
   displayName: string;
   description?: string;
@@ -133,6 +136,8 @@ function normalizePort(port: PortMetaDto, direction: 'input' | 'output'): BlockP
 
 function mapBlockDetailsDto(dto: BlockDetailsDto): BlockDetails {
   return {
+    studioBinding: normalizeVisualizationCapability(dto.id, dto.capabilities?.['studio:visualization'],
+      (dto.parameters ?? []).map((parameter) => parameter.name)),
     blockTypeId: dto.id,
     displayName: dto.name || dto.id,
     description: dto.summary ?? dto.description,

@@ -4,17 +4,20 @@ export type StudioTransportMode = 'http_snapshot' | 'http_poll' | 'zmq_sub' | 'w
 export const STUDIO_PHASE1_SUPPORTED_TRANSPORTS = ['http_snapshot', 'http_poll'] as const;
 
 export type StudioBindingParameterMap = {
-  transport: 'transport';
-  endpoint: 'endpoint';
-  pollMs?: 'poll_ms';
-  updateMs?: 'update_ms';
-  sampleRate?: 'sample_rate';
-  channels?: 'channels';
-  bufferMs?: 'buffer_ms';
-  topic?: 'topic';
+  transport: string;
+  endpoint: string;
+  pollMs?: string;
+  updateMs?: string;
+  sampleRate?: string;
+  channels?: string;
+  bufferMs?: string;
+  topic?: string;
+  seriesCount?: string;
 };
 
 export type StudioKnownBlockBinding = {
+  routing?: 'session';
+  semanticKind?: string;
   blockTypeId: string;
   family: StudioBindingFamily;
   supportedTransports: readonly StudioTransportMode[];
@@ -87,6 +90,7 @@ export const STUDIO_KNOWN_BLOCK_BINDINGS: readonly StudioKnownBlockBinding[] = [
     family: 'series',
     supportedTransports: STUDIO_SERIES_SUPPORTED_TRANSPORTS,
     parameters: {
+      seriesCount: 'n_inputs',
       transport: 'transport',
       endpoint: 'endpoint',
       updateMs: 'update_ms',
@@ -102,6 +106,7 @@ export const STUDIO_KNOWN_BLOCK_BINDINGS: readonly StudioKnownBlockBinding[] = [
     family: 'series',
     supportedTransports: STUDIO_SERIES_SUPPORTED_TRANSPORTS,
     parameters: {
+      seriesCount: 'n_inputs',
       transport: 'transport',
       endpoint: 'endpoint',
       updateMs: 'update_ms',
@@ -115,6 +120,7 @@ export const STUDIO_KNOWN_BLOCK_BINDINGS: readonly StudioKnownBlockBinding[] = [
     family: 'series',
     supportedTransports: STUDIO_SERIES_SUPPORTED_TRANSPORTS,
     parameters: {
+      seriesCount: 'n_inputs',
       transport: 'transport',
       endpoint: 'endpoint',
       updateMs: 'update_ms',
@@ -128,6 +134,7 @@ export const STUDIO_KNOWN_BLOCK_BINDINGS: readonly StudioKnownBlockBinding[] = [
     family: 'series',
     supportedTransports: STUDIO_SERIES_SUPPORTED_TRANSPORTS,
     parameters: {
+      seriesCount: 'n_inputs',
       transport: 'transport',
       endpoint: 'endpoint',
       updateMs: 'update_ms',
@@ -247,6 +254,7 @@ export const STUDIO_KNOWN_BLOCK_BINDINGS: readonly StudioKnownBlockBinding[] = [
   {
     blockTypeId: 'gr::studio::StudioDataSetSink<float32>',
     family: 'series2d',
+    semanticKind: 'dataset',
     supportedTransports: STUDIO_PHASE1_SUPPORTED_TRANSPORTS,
     parameters: {
       transport: 'transport',
@@ -260,6 +268,7 @@ export const STUDIO_KNOWN_BLOCK_BINDINGS: readonly StudioKnownBlockBinding[] = [
   {
     blockTypeId: 'gr::studio::StudioDataSetSink<float64>',
     family: 'series2d',
+    semanticKind: 'dataset',
     supportedTransports: STUDIO_PHASE1_SUPPORTED_TRANSPORTS,
     parameters: {
       transport: 'transport',
@@ -273,6 +282,7 @@ export const STUDIO_KNOWN_BLOCK_BINDINGS: readonly StudioKnownBlockBinding[] = [
   {
     blockTypeId: 'gr::studio::StudioDataSetSink<float>',
     family: 'series2d',
+    semanticKind: 'dataset',
     supportedTransports: STUDIO_PHASE1_SUPPORTED_TRANSPORTS,
     parameters: {
       transport: 'transport',
@@ -286,6 +296,7 @@ export const STUDIO_KNOWN_BLOCK_BINDINGS: readonly StudioKnownBlockBinding[] = [
   {
     blockTypeId: 'gr::studio::StudioDataSetSink<double>',
     family: 'series2d',
+    semanticKind: 'dataset',
     supportedTransports: STUDIO_PHASE1_SUPPORTED_TRANSPORTS,
     parameters: {
       transport: 'transport',
@@ -299,6 +310,7 @@ export const STUDIO_KNOWN_BLOCK_BINDINGS: readonly StudioKnownBlockBinding[] = [
   {
     blockTypeId: 'gr::studio::StudioPowerSpectrumSink<float32>',
     family: 'series2d',
+    semanticKind: 'power_spectrum',
     supportedTransports: STUDIO_POWER_SPECTRUM_SUPPORTED_TRANSPORTS,
     parameters: {
       transport: 'transport',
@@ -313,6 +325,7 @@ export const STUDIO_KNOWN_BLOCK_BINDINGS: readonly StudioKnownBlockBinding[] = [
   {
     blockTypeId: 'gr::studio::StudioPowerSpectrumSink<complex64>',
     family: 'series2d',
+    semanticKind: 'power_spectrum',
     supportedTransports: STUDIO_POWER_SPECTRUM_SUPPORTED_TRANSPORTS,
     parameters: {
       transport: 'transport',
@@ -327,6 +340,7 @@ export const STUDIO_KNOWN_BLOCK_BINDINGS: readonly StudioKnownBlockBinding[] = [
   {
     blockTypeId: 'gr::studio::StudioPowerSpectrumSink<complex<float32>>',
     family: 'series2d',
+    semanticKind: 'power_spectrum',
     supportedTransports: STUDIO_POWER_SPECTRUM_SUPPORTED_TRANSPORTS,
     parameters: {
       transport: 'transport',
@@ -341,6 +355,7 @@ export const STUDIO_KNOWN_BLOCK_BINDINGS: readonly StudioKnownBlockBinding[] = [
   {
     blockTypeId: 'gr::studio::StudioPowerSpectrumSink<std::complex<float32>>',
     family: 'series2d',
+    semanticKind: 'power_spectrum',
     supportedTransports: STUDIO_POWER_SPECTRUM_SUPPORTED_TRANSPORTS,
     parameters: {
       transport: 'transport',
@@ -486,8 +501,16 @@ export const STUDIO_KNOWN_BLOCK_BINDINGS_BY_ID = new Map<string, StudioKnownBloc
   STUDIO_KNOWN_BLOCK_BINDINGS.map((binding) => [binding.blockTypeId, binding]),
 );
 
-export function lookupStudioKnownBlockBinding(blockTypeId: string): StudioKnownBlockBinding | null {
-  return STUDIO_KNOWN_BLOCK_BINDINGS_BY_ID.get(blockTypeId) ?? null;
+export function lookupStudioKnownBlockBinding(blockTypeId: string, reflected?: StudioKnownBlockBinding | null): StudioKnownBlockBinding | null {
+  return reflected === undefined ? STUDIO_KNOWN_BLOCK_BINDINGS_BY_ID.get(blockTypeId) ?? null : reflected;
+}
+
+export function resolveStudioSeriesCount(binding: StudioKnownBlockBinding, values: Record<string, string>): number | undefined {
+  const key = binding.parameters.seriesCount ?? binding.parameters.channels;
+  const raw = key ? values[key]?.trim() : undefined;
+  if (!raw || !/^\d+$/.test(raw)) return undefined;
+  const count = Number(raw);
+  return Number.isSafeInteger(count) ? count : undefined;
 }
 
 export function resolveStudioBindingFromParameters(
@@ -531,9 +554,7 @@ export function resolveStudioBindingFromParameters(
   const sampleRate = binding.parameters.sampleRate
     ? parseInteger(parameterValues[binding.parameters.sampleRate])
     : undefined;
-  const channels = binding.parameters.channels
-    ? parseInteger(parameterValues[binding.parameters.channels])
-    : undefined;
+  const channels = resolveStudioSeriesCount(binding, parameterValues);
   const bufferMs = binding.parameters.bufferMs
     ? parseInteger(parameterValues[binding.parameters.bufferMs])
     : undefined;
@@ -556,13 +577,14 @@ export function resolveStudioBindingFromParameters(
 export function buildStudioBindingView(
   blockTypeId: string,
   parameterValues: Record<string, string>,
+  reflected?: StudioKnownBlockBinding | null,
 ): StudioBindingView {
-  const binding = lookupStudioKnownBlockBinding(blockTypeId);
+  const binding = lookupStudioKnownBlockBinding(blockTypeId, reflected);
   if (!binding) {
     return {
       status: 'unsupported',
       blockTypeId,
-      reason: 'Block type is not in the Studio known-block registry.',
+      reason: 'No supported visualization is available for this block.',
     };
   }
 
