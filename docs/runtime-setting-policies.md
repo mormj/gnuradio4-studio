@@ -28,7 +28,7 @@ Supported adoption is deliberately bounded:
 | Audited Series, PowerSpectrum, and Waterfall display settings | Explicit live declarations in the sink producer policy PR |
 | Sink transport, endpoint, and captured update interval | Stopped-only; edit configuration and run again |
 | Port-count settings | Topology; reconfigure the graph |
-| SignalGenerator tone frequency | Separate standard-block adoption PR, requiring a native running-update regression |
+| SignalGenerator tone frequency | Explicit live in the separate standard-block producer PR; native regression verifies the staged update changes running output |
 | Other unannotated standard-block settings | Unclassified for automatic propagation; status explains the skipped dependency |
 
 Do not infer live support from a parameter name, a block ID, writability, or an
