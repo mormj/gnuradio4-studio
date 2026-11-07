@@ -79,6 +79,7 @@ describe('resolveRenderedPorts', () => {
       isExplicitDynamicCollection: true,
       renderPortCount: 2,
       handleNameTemplate: 'in#${index}',
+      sizeParameter: 'channels',
       typeName: 'float32',
     });
 
@@ -92,7 +93,7 @@ describe('resolveRenderedPorts', () => {
     });
   });
 
-  it('uses renderPortCount when sizeParameter is absent or unset', () => {
+  it('uses the catalog default when the declared size setting is omitted', () => {
     const result = resolveSingle(
       {
         name: 'banana',
@@ -135,7 +136,7 @@ describe('resolveRenderedPorts', () => {
     ]);
   });
 
-  it('falls back to legacy name-based inference when explicit metadata is absent', () => {
+  it('does not guess count ownership from parameter names', () => {
     const result = resolveSingle(
       {
         name: 'inputs',
@@ -146,12 +147,43 @@ describe('resolveRenderedPorts', () => {
       { n_inputs: '2' },
     );
 
-    expect(result.inputs).toHaveLength(2);
-    expect(result.inputs.map((port) => port.portId)).toEqual(['inputs#0', 'inputs#1']);
-    expect(result.inputs[0].inference).toBe('inferred');
+    expect(result.inputs).toHaveLength(1);
+    expect(result.inputs[0]).toMatchObject({ inference: 'collapsed', connectable: false });
   });
 });
 
+
+it('preserves zero and rejects invalid explicit counts without using a default', () => {
+  const schema: SchemaPort = { name: 'bank', direction: 'input', cardinalityKind: 'dynamic',
+    sizeParameter: 'Channels', renderPortCount: 3, minPortCount: 0, maxPortCount: 32 };
+  expect(resolveSingle(schema, { Channels: '0' }).inputs).toEqual([]);
+  for (const value of ['', 'oops', '-1', '2.5', '33']) {
+    expect(resolveSingle(schema, { Channels: value }).inputs[0].connectable).toBe(false);
+  }
+  expect(resolveSingle(schema, { channels: '7' }).inputs).toHaveLength(3);
+});
+
+it('uses separate declared counts and preserves cardinality beyond the display cap', () => {
+  const result = resolveRenderedPorts({ schemaPorts: [
+    { name: 'a', direction: 'input', cardinalityKind: 'dynamic', sizeParameter: 'first' },
+    { name: 'b', direction: 'input', cardinalityKind: 'dynamic', sizeParameter: 'second' },
+  ], parameterValues: { first: '32', second: '2' } });
+  const a = result.inputs.filter((p) => p.sourceSchemaName === 'a');
+  expect(a.filter((p) => p.connectable)).toHaveLength(16);
+  expect(a[a.length - 1]).toMatchObject({ semanticPortCount: 32, connectable: false });
+  expect(a[a.length - 1]?.displayLabel).toContain('32 ports');
+  expect(result.inputs.filter((p) => p.sourceSchemaName === 'b')).toHaveLength(2);
+});
+
+
+it('keeps existing connections above the display cap addressable', () => {
+  const result = resolveRenderedPorts({ schemaPorts: [
+    { name: 'bank', direction: 'input', cardinalityKind: 'dynamic', sizeParameter: 'count' },
+  ], parameterValues: { count: '32' }, connectedPortIds: ['bank#25', 'bank#40'] });
+  expect(result.inputs.find((p) => p.portId === 'bank#25')?.connectable).toBe(true);
+  expect(result.inputs.find((p) => p.portId === 'bank#40')).toBeUndefined();
+  expect(result.inputs[result.inputs.length - 1]?.semanticPortCount).toBe(32);
+});
 
 describe('reflected structural schema', () => {
   it('renders a fixed collection with indexed identities, including zero extent', () => {

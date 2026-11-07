@@ -1,3 +1,4 @@
+import { resolvePortParameterValues } from '../ports/model/resolvePortParameterValues';
 import { useEffect, useMemo, useState, type KeyboardEvent, type ReactNode } from 'react';
 import { useQueries } from '@tanstack/react-query';
 import { PanelHeader } from '../../components/panel-header';
@@ -497,6 +498,10 @@ function SelectionTab({
   const selectedBlock = useEditorStore((state) =>
     state.nodes.find((block) => block.instanceId === state.selectedNodeId),
   );
+  const nodes = useEditorStore((state) => state.nodes);
+  const edges = useEditorStore((state) => state.edges);
+  const studioVariables = useEditorStore((state) => state.studioVariables);
+  const resolvedPortParameters = useMemo(() => resolvePortParameterValues(nodes, studioVariables), [nodes, studioVariables]);
   const canonicalDisplayName = selectedBlock
     ? toCanonicalBlockDisplayName(selectedBlock.displayName, selectedBlock.blockTypeId)
     : '';
@@ -539,7 +544,11 @@ function SelectionTab({
     blockDetailsQuery.data && selectedBlock
       ? resolveRenderedPorts({
           schemaPorts: toSchemaPorts(blockDetailsQuery.data),
-          parameterValues: effectiveParameterValues,
+          parameterValues: resolvedPortParameters[selectedBlock.instanceId] ?? effectiveParameterValues,
+          connectedPortIds: edges.flatMap((edge) => [
+            ...(edge.sourceInstanceId === selectedBlock.instanceId && edge.sourcePort ? [edge.sourcePort] : []),
+            ...(edge.targetInstanceId === selectedBlock.instanceId && edge.targetPort ? [edge.targetPort] : []),
+          ]),
         })
       : { inputs: [], outputs: [] };
 

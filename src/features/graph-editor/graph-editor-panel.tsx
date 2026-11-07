@@ -1,3 +1,4 @@
+import { resolvePortParameterValues } from '../ports/model/resolvePortParameterValues';
 import { executeStudioCommand, hasDesktopMenus, isTextEditingTarget } from '../../lib/commands/studio-commands';
 import { useStudioCommands } from '../../lib/commands/use-studio-commands';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -119,8 +120,9 @@ function toFlowNodeData(
   fallbackRenderedPorts: { inputs: RenderedPort[]; outputs: RenderedPort[] },
   blockDetails?: BlockDetails,
   shortDisplayNameOverride?: string,
+  resolvedParameterValues?: Record<string, string>,
 ): FlowGraphNode {
-  const parameterValues = Object.entries(node.parameters).reduce<Record<string, string>>(
+  const parameterValues = resolvedParameterValues ?? Object.entries(node.parameters).reduce<Record<string, string>>(
     (acc, [name, entry]) => {
       acc[name] = entry.value;
       return acc;
@@ -132,6 +134,8 @@ function toFlowNodeData(
     ? resolveRenderedPorts({
         schemaPorts: toSchemaPorts(blockDetails),
         parameterValues,
+        connectedPortIds: [...fallbackRenderedPorts.inputs, ...fallbackRenderedPorts.outputs]
+          .flatMap((port) => port.portId ? [port.portId] : []),
       })
     : fallbackRenderedPorts;
   const cardSummary = buildBlockCardSummary(node, blockDetails);
@@ -410,6 +414,8 @@ export function GraphEditorPanel({
   const blockCatalogQuery = useBlockCatalogQuery();
   const editorNodes = useEditorStore((state) => state.nodes);
   const editorEdges = useEditorStore((state) => state.edges);
+  const studioVariables = useEditorStore((state) => state.studioVariables);
+  const resolvedPortParameters = useMemo(() => resolvePortParameterValues(editorNodes, studioVariables), [editorNodes, studioVariables]);
   const selectedNodeId = useEditorStore((state) => state.selectedNodeId);
   const applyFlowNodeChanges = useEditorStore((state) => state.applyFlowNodeChanges);
   const applyFlowEdgeChanges = useEditorStore((state) => state.applyFlowEdgeChanges);
@@ -478,6 +484,7 @@ export function GraphEditorPanel({
           fallbackPortsByNodeId.get(block.instanceId) ?? { inputs: [], outputs: [] },
           blockDetailsByType.get(block.blockTypeId),
           toShortBlockName(block.displayName, block.blockTypeId),
+          resolvedPortParameters[block.instanceId],
         );
       });
     },
@@ -485,6 +492,7 @@ export function GraphEditorPanel({
       blockDetailsByType,
       catalogBlockTypeIds,
       editorNodes,
+      resolvedPortParameters,
       fallbackPortsByNodeId,
       hasResolvedCatalog,
       onCloseRuntimeVisualization,

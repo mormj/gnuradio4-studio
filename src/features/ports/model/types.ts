@@ -44,6 +44,7 @@ export type RenderedPort = {
 export type ResolveRenderedPortsInput = {
   schemaPorts: SchemaPort[];
   parameterValues: Record<string, string>;
+  connectedPortIds?: string[];
 };
 
 export type ResolveRenderedPortsResult = {
