@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include <gnuradio-4.0/studio/StudioCapabilities.hpp>
 #include <gnuradio-4.0/Block.hpp>
 #include <gnuradio-4.0/BlockRegistry.hpp>
 #include <gnuradio-4.0/Tag.hpp>
@@ -610,6 +611,7 @@ GR_REGISTER_BLOCK("gr::studio::StudioSeriesSink", gr::studio::StudioSeriesSink, 
 
 template<detail::SupportedSample T>
 struct StudioSeriesSink : Block<StudioSeriesSink<T>> {
+    using BlockMetadata = gr::BlockMetadata<detail::StudioVisualization<"series", "series-window-json-v1", "n_inputs", "time_series", false, "http_snapshot", "http_poll", "websocket">>;
     using Description = Doc<"@brief Studio 1D series sink with explicit transport configuration.">;
 
     std::vector<PortIn<T>> in{1UZ};

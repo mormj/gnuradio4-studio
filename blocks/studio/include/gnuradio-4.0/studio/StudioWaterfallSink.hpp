@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include <gnuradio-4.0/studio/StudioCapabilities.hpp>
 #include <gnuradio-4.0/Block.hpp>
 #include <gnuradio-4.0/BlockRegistry.hpp>
 
@@ -580,6 +581,7 @@ GR_REGISTER_BLOCK("gr::studio::StudioWaterfallSink", gr::studio::StudioWaterfall
 
 template<detail::SupportedWaterfallSample T>
 struct StudioWaterfallSink : Block<StudioWaterfallSink<T>> {
+    using BlockMetadata = gr::BlockMetadata<detail::StudioVisualization<"waterfall", "waterfall-spectrum-json-v1", "", "waterfall", true, "http_poll", "websocket">>;
     using Description = Doc<"@brief Studio waterfall sink with FFT windowing and bounded history.">;
 
     PortIn<T> in;

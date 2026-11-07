@@ -60,6 +60,13 @@ void testDefaultTransportAndCadence() {
     assert(block.update_ms == 250U);
     assert(block.n_inputs == 1UZ);
     assert(block.in.size() == 1UZ);
+    block.settings().init();
+    const auto* capabilities = block.meta_information.value.at("gr:capabilities").get_if<gr::property_map>();
+    assert(capabilities != nullptr);
+    const auto* visualization = capabilities->at("studio:visualization").get_if<gr::property_map>();
+    assert(visualization != nullptr);
+    assert(visualization->at("version").value_or(0U) == 1U);
+    assert(visualization->at("payload_format").value_or(std::string_view{}) == "series-window-json-v1");
 }
 
 void testWebSocketTransportLifecycle() {
