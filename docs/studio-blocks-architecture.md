@@ -101,7 +101,10 @@ Rules:
 - validate parameters locally, not authoritatively
 
 Websocket transport currently exists for selected sinks only. Descriptor-adapted current-session bindings currently include `StudioSeriesSink`, `Studio2DSeriesSink`, `StudioPowerSpectrumSink`, `StudioWaterfallSink`, `StudioScalarSink`, `StudioStatusSink`, and `StudioAudioSink`. When adding websocket support to a new sink, follow the implementation checklist in `docs/studio-websocket-integration.md`.
-For websocket-capable sinks, `update_ms` is the live cadence control used by the native send path.
+For the audited Series, PowerSpectrum, and Waterfall sinks, transport, endpoint, and
+`update_ms` are stopped-only settings. Configure them before starting and run the
+graph again; changing a writable interval does not reliably restart a transport.
+Audited display controls advertise live updates separately.
 
 ## Standard parameters
 
