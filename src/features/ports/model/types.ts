@@ -12,7 +12,6 @@ export type SchemaPort = {
   isOptional?: boolean;
   description?: string;
   cardinalityKind: 'fixed' | 'dynamic';
-  isExplicitDynamicCollection?: boolean;
   currentPortCount?: number;
   renderPortCount?: number;
   minPortCount?: number;
@@ -21,6 +20,7 @@ export type SchemaPort = {
   handleNameTemplate?: string;
 };
 
+// The inferred state is used only for existing edge handles when catalog metadata is unavailable.
 export type RenderedPortInference = 'authoritative' | 'inferred' | 'collapsed';
 
 export type RenderedPort = {
