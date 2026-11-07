@@ -28,6 +28,11 @@ export type BlockParameterMeta = {
 };
 
 export type BlockPortMeta = {
+  collectionKind?: 'single' | 'fixed' | 'dynamic';
+  fixedExtent?: number;
+  portKind?: 'stream' | 'message';
+  isSynchronous?: boolean;
+  schemaVersion?: number;
   name: string;
   direction: 'input' | 'output' | 'unknown';
   cardinalityKind: 'fixed' | 'dynamic';
@@ -102,6 +107,11 @@ function normalizePort(port: PortMetaDto, direction: 'input' | 'output'): BlockP
     name: port.name,
     direction: normalizedDirection,
     cardinalityKind: normalizedCardinality,
+    collectionKind: port.collection_kind,
+    fixedExtent: port.fixed_extent,
+    portKind: port.port_kind,
+    isSynchronous: port.is_synchronous,
+    schemaVersion: port.schema_version,
     isExplicitDynamicCollection,
     currentPortCount: port.current_port_count,
     renderPortCount: port.render_port_count,

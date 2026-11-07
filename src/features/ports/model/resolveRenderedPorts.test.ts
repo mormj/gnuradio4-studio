@@ -151,3 +151,29 @@ describe('resolveRenderedPorts', () => {
     expect(result.inputs[0].inference).toBe('inferred');
   });
 });
+
+
+describe('reflected structural schema', () => {
+  it('renders a fixed collection with indexed identities, including zero extent', () => {
+    const schema: SchemaPort = {
+      name: 'bank', direction: 'input', cardinalityKind: 'fixed',
+      collectionKind: 'fixed', fixedExtent: 3, schemaVersion: 1,
+      typeName: 'float64', isOptional: true, isSynchronous: false, portKind: 'stream',
+    };
+    const ports = resolveSingle(schema).inputs;
+    expect(ports.map((p) => p.portId)).toEqual(['bank#0', 'bank#1', 'bank#2']);
+    expect(ports.every((p) => p.typeName === 'float64' && p.isOptional && !p.isSynchronous)).toBe(true);
+    expect(resolveSingle({ ...schema, fixedExtent: 0 }).inputs).toEqual([]);
+    expect(resolveSingle({ ...schema, fixedExtent: 32 }).inputs).toHaveLength(32);
+  });
+
+  it('retains empty dynamic collection types without inventing handles', () => {
+    const ports = resolveSingle({
+      name: 'bank', direction: 'input', cardinalityKind: 'dynamic',
+      collectionKind: 'dynamic', schemaVersion: 1, isExplicitDynamicCollection: true,
+      typeName: 'float64', isOptional: true, isSynchronous: false,
+    }).inputs;
+    expect(ports).toHaveLength(1);
+    expect(ports[0]).toMatchObject({ typeName: 'float64', inference: 'collapsed', connectable: false });
+  });
+});

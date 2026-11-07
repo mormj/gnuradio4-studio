@@ -1,6 +1,11 @@
 export type PortDirection = 'input' | 'output';
 
 export type SchemaPort = {
+  collectionKind?: 'single' | 'fixed' | 'dynamic';
+  fixedExtent?: number;
+  portKind?: 'stream' | 'message';
+  isSynchronous?: boolean;
+  schemaVersion?: number;
   name: string;
   direction: PortDirection;
   typeName?: string;
@@ -19,6 +24,9 @@ export type SchemaPort = {
 export type RenderedPortInference = 'authoritative' | 'inferred' | 'collapsed';
 
 export type RenderedPort = {
+  semanticPortCount?: number;
+  isSynchronous?: boolean;
+  portKind?: 'stream' | 'message';
   key: string;
   direction: PortDirection;
   displayLabel: string;

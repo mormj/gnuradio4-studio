@@ -92,6 +92,11 @@ function toSchemaPorts(details: BlockDetails): SchemaPort[] {
       name: port.name,
       direction: port.direction as 'input' | 'output',
       cardinalityKind: port.cardinalityKind,
+      collectionKind: port.collectionKind,
+      fixedExtent: port.fixedExtent,
+      portKind: port.portKind,
+      isSynchronous: port.isSynchronous,
+      schemaVersion: port.schemaVersion,
       isExplicitDynamicCollection: port.isExplicitDynamicCollection,
       currentPortCount: port.currentPortCount,
       renderPortCount: port.renderPortCount,
@@ -257,6 +262,11 @@ function toStyledFlowEdge(
   const sourceHandle = edge.sourcePort ? sourceNodePorts?.outputHandleIdsByPortId.get(edge.sourcePort) : undefined;
   const targetHandle = edge.targetPort ? targetNodePorts?.inputHandleIdsByPortId.get(edge.targetPort) : undefined;
   const isMismatched = arePortTypesMismatched(sourceType, targetType);
+  const missingPort = Boolean(
+    (edge.sourcePort && sourceNodePorts && !sourceHandle) ||
+    (edge.targetPort && targetNodePorts && !targetHandle),
+  );
+  const isInvalid = isMismatched || missingPort;
 
   return {
     ...toFlowEdge({
@@ -264,14 +274,15 @@ function toStyledFlowEdge(
       sourcePort: sourceHandle ?? edge.sourcePort,
       targetPort: targetHandle ?? edge.targetPort,
     }),
-    style: isMismatched
+    label: missingPort ? 'Port is unavailable in the current configuration' : undefined,
+    style: isInvalid
       ? {
           stroke: 'var(--theme-connection-invalid)',
           strokeWidth: 3,
         }
       : undefined,
-    className: isMismatched ? 'theme-invalid' : undefined,
-    animated: isMismatched,
+    className: isInvalid ? 'theme-invalid' : undefined,
+    animated: isInvalid,
   };
 }
 

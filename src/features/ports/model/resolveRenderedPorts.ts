@@ -211,6 +211,8 @@ function fixedRenderedPort(schemaPort: SchemaPort): RenderedPort {
     connectable: true,
     typeName: schemaPort.typeName,
     isOptional: schemaPort.isOptional,
+    isSynchronous: schemaPort.isSynchronous,
+    portKind: schemaPort.portKind,
     description: schemaPort.description,
   };
 }
@@ -227,6 +229,8 @@ function collapsedDynamicRenderedPort(schemaPort: SchemaPort): RenderedPort {
     connectable: false,
     typeName: schemaPort.typeName,
     isOptional: schemaPort.isOptional,
+    isSynchronous: schemaPort.isSynchronous,
+    portKind: schemaPort.portKind,
     description: schemaPort.description,
   };
 }
@@ -248,11 +252,19 @@ function expandedDynamicRenderedPorts(
     connectable: true,
     typeName: schemaPort.typeName,
     isOptional: schemaPort.isOptional,
+    isSynchronous: schemaPort.isSynchronous,
+    portKind: schemaPort.portKind,
     description: schemaPort.description,
   }));
 }
 
 function resolveOne(schemaPort: SchemaPort, parameterValues: Record<string, string>): RenderedPort[] {
+  if (schemaPort.schemaVersion === 1 && schemaPort.collectionKind === 'fixed') {
+    const extent = normalizePortCount(schemaPort.fixedExtent);
+    if (extent === null) return [collapsedDynamicRenderedPort(schemaPort)];
+    return expandedDynamicRenderedPorts(schemaPort, extent, 'authoritative')
+      .map((port) => ({ ...port, cardinalityKind: 'fixed', semanticPortCount: extent }));
+  }
   if (schemaPort.cardinalityKind === 'fixed') {
     return [fixedRenderedPort(schemaPort)];
   }
