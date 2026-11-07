@@ -101,6 +101,22 @@ function expectState(result: ResolvedControlWidget[], state: ResolvedControlWidg
 }
 
 describe('resolveControlPanelWidgetBindings', () => {
+  it.each(['stopped', 'topology'] as const)('restricts %s settings without disabling runtime reads', (updatePolicy) => {
+    const [widget] = resolveControlPanelWidgetBindings({ panel: makePanel(), nodeById: new Map([['node-a', makeNode()]]),
+      blockDetailsByType: new Map([['gr4.example.Sink', makeBlockDetails({ updatePolicy })]]), runtime: makeRuntime() });
+    expect(widget.state).toBe('restricted');
+    expect(widget.runtimeReadable).toBe(true);
+    expect(widget.reason).toMatch(updatePolicy === 'topology' ? /reconfiguration/ : /before starting/);
+  });
+
+  it('keeps reads available while parameter metadata is loading', () => {
+    const [widget] = resolveControlPanelWidgetBindings({ panel: makePanel(), nodeById: new Map([['node-a', makeNode()]]),
+      blockDetailsByType: new Map(), runtime: makeRuntime() });
+    expect(widget.state).toBe('restricted');
+    expect(widget.runtimeReadable).toBe(true);
+    expect(widget.reason).toContain('metadata');
+  });
+
   it('marks a valid binding as ready when a linked session is running and in sync', () => {
     const result = resolveControlPanelWidgetBindings({
       panel: makePanel(),

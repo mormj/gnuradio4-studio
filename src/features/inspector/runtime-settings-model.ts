@@ -58,7 +58,15 @@ export function shouldPropagateResolvedRuntimeSetting(params: {
 }
 
 export function canEditRuntimeSetting(parameter?: { mutable: boolean; readOnly: boolean; updatePolicy?: string }): boolean {
-  return Boolean(parameter?.mutable && !parameter.readOnly && parameter.updatePolicy !== 'stopped' && parameter.updatePolicy !== 'topology');
+  return runtimeSettingEditReason(parameter) === undefined;
+}
+
+export function runtimeSettingEditReason(parameter?: { mutable: boolean; readOnly: boolean; updatePolicy?: string }): string | undefined {
+  if (!parameter) return 'Parameter metadata is unavailable or still loading.';
+  if (!parameter.mutable || parameter.readOnly) return 'This setting is read-only.';
+  if (parameter.updatePolicy === 'topology') return 'Requires graph reconfiguration.';
+  if (parameter.updatePolicy === 'stopped') return 'Change this setting before starting the session, then run the graph again.';
+  return undefined;
 }
 
 export function toRuntimeSettingsErrorMessage(error: unknown): string {

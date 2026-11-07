@@ -4,7 +4,8 @@ import type { RuntimeSettingsValue } from '../../lib/api/block-settings';
 import { useRuntimeBlockSettings } from '../inspector/hooks/use-runtime-block-settings';
 import { toRuntimeSettingsErrorMessage } from '../inspector/runtime-settings-model';
 import { getCompatibleControlWidgetInputKinds, getControlWidgetTargetLabel } from './control-panel-authoring';
-import type { ResolvedControlWidget } from './control-panel-binding-resolution';
+import { controlWidgetWriteReason, type ResolvedControlWidget } from './control-panel-binding-resolution';
+import { flushControlWidgetWrites } from './control-panel-writes';
 import type { ExpressionBinding } from '../variables/model/types';
 import type { StudioControlWidgetSliderConfig } from '../graph-document/model/studio-workspace';
 import {
@@ -146,15 +147,17 @@ function ControlWidgetField({
   onRemoveWidget,
   onMoveWidgetToPanel,
 }: ControlWidgetFieldProps) {
-  const canWrite =
-    widget.binding.kind === 'parameter'
-      ? widget.state === 'ready' && Boolean(widget.runtimeSessionId)
-      : widget.state === 'ready';
+  const canRead = widget.binding.kind === 'parameter' && Boolean(widget.runtimeSessionId) && Boolean(widget.runtimeReadable);
   const { query, mutation } = useRuntimeBlockSettings(
     widget.binding.kind === 'parameter' ? widget.runtimeSessionId ?? undefined : undefined,
     widget.binding.kind === 'parameter' ? widget.binding.nodeId : undefined,
-    canWrite && widget.binding.kind === 'parameter',
+    canRead,
   );
+  const writeReason = controlWidgetWriteReason(widget);
+  const canWrite = writeReason === undefined;
+  const writeTarget = JSON.stringify([widget.runtimeSessionId, widget.binding]);
+  const writeEligibilityRef = useRef({ canWrite, writeTarget });
+  writeEligibilityRef.current = { canWrite, writeTarget };
   const runtimeValue =
     widget.binding.kind === 'parameter' ? query.data?.[widget.binding.parameterName] : undefined;
   const committedValue = runtimeValue !== undefined ? runtimeValue : widget.currentValue;
@@ -170,6 +173,10 @@ function ControlWidgetField({
   const flushingWriteRef = useRef(false);
   const menuRef = useRef<HTMLDivElement | null>(null);
   const triggerRef = useRef<HTMLButtonElement | null>(null);
+
+  useEffect(() => {
+    if (!canWrite) queuedWriteRef.current = null;
+  }, [canWrite]);
 
   useEffect(() => {
     setValidationError(null);
@@ -263,7 +270,7 @@ function ControlWidgetField({
   }, [isMenuOpen]);
 
   const savePatch = async (nextValue: RuntimeSettingsValue) => {
-    if (!canWrite) {
+    if (!writeEligibilityRef.current.canWrite || writeEligibilityRef.current.writeTarget !== writeTarget) {
       return;
     }
 
@@ -289,17 +296,18 @@ function ControlWidgetField({
       if (!parameterName) {
         return;
       }
-      while (queuedWriteRef.current !== null) {
-        const pendingValue = queuedWriteRef.current.value;
-        queuedWriteRef.current = null;
+      await flushControlWidgetWrites(queuedWriteRef,
+        () => writeEligibilityRef.current.canWrite && writeEligibilityRef.current.writeTarget === writeTarget,
+        async (pendingValue) => {
         setValidationError(null);
         await mutation.mutateAsync({
           patch: {
-            [widget.binding.parameterName]: pendingValue,
+            [parameterName]: pendingValue,
           },
           mode: 'staged',
         });
-      }
+        },
+      );
     } catch (error) {
       setValidationError(toRuntimeSettingsErrorMessage(error));
     } finally {
@@ -315,7 +323,7 @@ function ControlWidgetField({
     (isPending
       ? 'Saving live setting...'
       : isDisabled
-        ? widget.reason ?? stateLabel(widget.state)
+        ? writeReason ?? widget.reason ?? stateLabel(widget.state)
         : undefined);
   const rowClass = [
     'group relative grid items-center gap-2 rounded-md border px-3 py-2 transition-colors',

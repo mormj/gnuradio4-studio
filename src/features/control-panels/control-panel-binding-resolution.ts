@@ -9,6 +9,7 @@ import type {
 } from '../graph-document/model/studio-workspace';
 import type { ExecutionState, GraphDriftState } from '../runtime-session/store/runtimeSessionStore';
 import type { ResolvedGraphVariables } from '../variables/model/resolveGraphVariables';
+import { runtimeSettingEditReason } from '../inspector/runtime-settings-model';
 
 export type ControlWidgetBindingState =
   | 'missing_node'
@@ -18,6 +19,7 @@ export type ControlWidgetBindingState =
   | 'offline'
   | 'stopped'
   | 'stale'
+  | 'restricted'
   | 'ready';
 
 type ControlWidgetRuntimeState = {
@@ -32,6 +34,7 @@ export type ResolvedControlWidget = {
   binding: StudioControlWidgetBinding;
   inputKind: StudioControlWidgetInputKind;
   runtimeSessionId?: string | null;
+  runtimeReadable?: boolean;
   currentValue: string;
   enumOptions?: readonly string[];
   enumLabels?: Record<string, string>;
@@ -43,6 +46,13 @@ export type ResolvedControlWidget = {
   parameterMeta?: BlockParameterMeta;
   variableName?: string;
 };
+
+export function controlWidgetWriteReason(widget: ResolvedControlWidget): string | undefined {
+  if (widget.state !== 'ready') return widget.reason ?? 'Control is unavailable.';
+  if (widget.binding.kind === 'variable') return undefined;
+  if (!widget.runtimeSessionId) return 'No linked session is available for live control.';
+  return runtimeSettingEditReason(widget.parameterMeta);
+}
 
 function isNumericTypeName(valueType?: string): boolean {
   const normalized = (valueType ?? '').trim().toLowerCase();
@@ -231,6 +241,7 @@ export function resolveControlPanelWidgetBindings(input: {
     }
 
     const runtimeState = deriveRuntimeState(input.runtime);
+    const editReason = runtimeSettingEditReason(parameterMeta);
     return {
       id: widget.id,
       label,
@@ -238,14 +249,15 @@ export function resolveControlPanelWidgetBindings(input: {
       inputKind: widget.inputKind,
       slider: widget.slider,
       runtimeSessionId: input.runtime?.sessionId ?? null,
+      runtimeReadable: runtimeState.state === 'ready',
       currentValue: parameterEntry.value,
       enumOptions,
       enumLabels,
-      state: runtimeState.state,
+      state: runtimeState.state === 'ready' && editReason ? 'restricted' : runtimeState.state,
       nodeDisplayName: node.displayName,
       nodeBlockTypeId: node.blockTypeId,
       parameterMeta,
-      reason: runtimeState.reason,
+      reason: runtimeState.state === 'ready' ? editReason ?? runtimeState.reason : runtimeState.reason,
     };
   });
 }

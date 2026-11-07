@@ -56,7 +56,8 @@ import { resolveCurrentSessionStudioBindingView } from '../features/runtime-sess
 import { useRuntimeSessionStore } from '../features/runtime-session/store/runtimeSessionStore';
 import { setBlockSettings } from '../lib/api/block-settings';
 import { buildCurrentGraphSubmissionFromEditorSnapshot } from '../features/runtime-submission/model/current-graph-submission';
-import { shouldPropagateResolvedRuntimeSetting } from '../features/inspector/runtime-settings-model';
+import { resolveRuntimeSettingPropagation, stageRuntimeSettingPropagation } from '../features/inspector/runtime-setting-propagation';
+import { toRuntimeSettingsErrorMessage } from '../features/inspector/runtime-settings-model';
 import { WorkspaceView, type WorkspacePanelViewModel } from '../features/workspace/workspace-view';
 import { resolveGraphVariables } from '../features/variables/model/resolveGraphVariables';
 import { deriveDefaultStudioPanelsFromNodes } from '../features/workspace/model/panel-derivation';
@@ -199,6 +200,7 @@ function isPristineUntitledTab(tab: ReturnType<typeof useGraphTabsStore.getState
 
 export function StudioPage() {
   const desktopMenus = hasDesktopMenus();
+  const [runtimePropagationStatus, setRuntimePropagationStatus] = useState<{ sessionId: string; tabId: string; message: string } | null>(null);
   const [renameDocument, setRenameDocument] = useState<{ tabId: string; name: string } | null>(null);
   const [isDiagnosticsOpen, setIsDiagnosticsOpen] = useState(false);
   const persistenceService = useMemo(() => createDocumentPersistenceService(), []);
@@ -667,7 +669,7 @@ export function StudioPage() {
     },
     [blockDetailsByType, effectiveStudioPlotPalettes, mergedWorkspacePanels, nodes, resolvedGraphForRuntime],
   );
-  const lastPropagatedRuntimeSnapshotRef = useRef<string | null>(null);
+  const lastProcessedRuntimeSnapshotRef = useRef<string | null>(null);
   const workspacePanelEntries = useMemo<WorkspacePanelViewModel[]>(
     () =>
       buildWorkspacePanelEntriesForRuntime(
@@ -713,62 +715,26 @@ export function StudioPage() {
     }
 
     const propagationKey = `${activeTabId}:${activeRuntimeContext.sessionId}:${serializedSnapshot.contentHash}:${runtimeVariableOverrideKey}`;
-    if (lastPropagatedRuntimeSnapshotRef.current === propagationKey) {
+    if (lastProcessedRuntimeSnapshotRef.current === propagationKey) {
       return;
     }
 
     let cancelled = false;
     const pushResolvedValues = async () => {
-      const updates = nodes.flatMap((node) => {
-        const blockDetails = blockDetailsByType.get(node.blockTypeId);
-        if (!blockDetails) {
-          return [];
+      const sessionId = activeRuntimeContext.sessionId as string;
+      const plan = resolveRuntimeSettingPropagation(nodes, blockDetailsByType, resolvedGraphForRuntime);
+      try {
+        const message = runtimeView.graphDriftState === 'out-of-sync'
+          ? 'Runtime settings were not staged because the graph changed. Run the graph again.'
+          : await stageRuntimeSettingPropagation(plan, async (nodeId, patch) => {
+              if (!cancelled) await setBlockSettings(sessionId, nodeId, patch, 'staged');
+            });
+        if (!cancelled) {
+          setRuntimePropagationStatus({ sessionId, tabId: activeTabId, message });
+          lastProcessedRuntimeSnapshotRef.current = propagationKey;
         }
-
-        const resolvedParameters = resolvedGraphForRuntime.parametersByNodeId[node.instanceId];
-        if (!resolvedParameters) {
-          return [];
-        }
-
-        const patch: Record<string, string | number | boolean | null> = {};
-        blockDetails.parameters.forEach((parameter) => {
-          if (parameter.readOnly || !parameter.mutable) {
-            return;
-          }
-          const resolvedParameter = resolvedParameters[parameter.name];
-          if (!resolvedParameter || resolvedParameter.state !== 'resolved' || resolvedParameter.value === undefined) {
-            return;
-          }
-          if (
-            !shouldPropagateResolvedRuntimeSetting({
-              name: parameter.name,
-              updatePolicy: parameter.updatePolicy,
-              bindingKind: resolvedParameter.binding.kind,
-            })
-          ) {
-            return;
-          }
-          patch[parameter.name] = resolvedParameter.value;
-        });
-
-        if (Object.keys(patch).length === 0) {
-          return [];
-        }
-
-        return [{ nodeId: node.instanceId, patch }];
-      });
-
-      await Promise.all(
-        updates.map(async ({ nodeId, patch }) => {
-          if (cancelled) {
-            return;
-          }
-          await setBlockSettings(activeRuntimeContext.sessionId as string, nodeId, patch, 'staged');
-        }),
-      );
-
-      if (!cancelled) {
-        lastPropagatedRuntimeSnapshotRef.current = propagationKey;
+      } catch (error) {
+        if (!cancelled) setRuntimePropagationStatus({ sessionId, tabId: activeTabId, message: `Runtime update failed: ${toRuntimeSettingsErrorMessage(error)}` });
       }
     };
 
@@ -1536,6 +1502,11 @@ export function StudioPage() {
       {!documentError && documentStatusMessage && (
         <div className="shrink-0 border-b border-emerald-900 bg-emerald-950/30 px-4 py-2 text-sm text-emerald-200">
           {documentStatusMessage}
+        </div>
+      )}
+      {runtimePropagationStatus?.tabId === activeTabId && runtimePropagationStatus?.sessionId === activeRuntimeContext?.sessionId && runtimeView?.executionState === 'running' && (
+        <div role="status" className="shrink-0 border-b border-slate-700 px-4 py-2 text-xs text-slate-300">
+          {runtimePropagationStatus.message}
         </div>
       )}
       {showUnsupportedNotice && !capabilities.canSaveInPlace && (
