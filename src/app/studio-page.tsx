@@ -748,7 +748,7 @@ export function StudioPage() {
     activeTabId,
     blockDetailsByType,
     nodes,
-    resolvedGraphForRuntime.parametersByNodeId,
+    resolvedGraphForRuntime,
     runtimeView,
     runtimeVariableOverrideKey,
     serializedSnapshot.contentHash,
