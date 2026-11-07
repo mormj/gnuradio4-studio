@@ -1,5 +1,5 @@
 import type { BlockDetails, BlockParameterMeta } from '../../../lib/api/block-details';
-import { isAdvancedParameterName, isAdvancedUiHint } from '../../../lib/utils/parameter-groups';
+import { isAdvancedParameter } from '../../../lib/utils/parameter-groups';
 import { isDescriptorBindingHiddenParameter } from '../runtime/studio-managed-runtime-authoring';
 import type { EditorNodeParameterDrafts } from './types';
 
@@ -78,7 +78,6 @@ function buildParameterLines(
     const fallback = Object.entries(parameters)
       .filter(
         ([name]) =>
-          !isAdvancedParameterName(name) &&
           !isDescriptorBindingHiddenParameter(blockTypeId, name),
       )
       .map(([name, entry]): ParameterRow => ({ name, value: truncateValue(entry.value) }));
@@ -92,8 +91,7 @@ function buildParameterLines(
   const ordered = details.parameters
     .filter(
       (parameter: BlockParameterMeta) =>
-        !isAdvancedParameterName(parameter.name) &&
-        !isAdvancedUiHint(parameter.uiHint) &&
+        !isAdvancedParameter(parameter) &&
         !isDescriptorBindingHiddenParameter(blockTypeId, parameter.name) &&
         !parameter.readOnly &&
         parameter.mutable,

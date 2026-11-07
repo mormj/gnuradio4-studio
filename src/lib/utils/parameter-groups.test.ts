@@ -1,11 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { isAdvancedParameterName, isAdvancedUiHint, isReadOnlyRuntimeMutability } from './parameter-groups';
+import { isAdvancedParameter, isAdvancedUiHint, isReadOnlyRuntimeMutability } from './parameter-groups';
 
 describe('parameter group helpers', () => {
-  it('matches known advanced parameter names', () => {
-    expect(isAdvancedParameterName('name')).toBe(true);
-    expect(isAdvancedParameterName(' compute_domain ')).toBe(true);
-    expect(isAdvancedParameterName('sample_rate')).toBe(false);
+  it('uses reflected presentation metadata and keeps absent metadata visible', () => {
+    expect(isAdvancedParameter({ visible: false })).toBe(true);
+    expect(isAdvancedParameter({ visible: true })).toBe(false);
+    expect(isAdvancedParameter({})).toBe(false);
   });
 
   it('matches advanced ui hints', () => {

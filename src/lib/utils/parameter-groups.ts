@@ -1,12 +1,5 @@
-const ADVANCED_PARAMETER_NAMES = new Set([
-  'name',
-  'compute_domain',
-  'ui_constraints',
-  'disconnect_on_done',
-]);
-
-export function isAdvancedParameterName(name: string): boolean {
-  return ADVANCED_PARAMETER_NAMES.has(name.trim().toLowerCase());
+export function isAdvancedParameter(parameter: { visible?: boolean; uiHint?: string }): boolean {
+  return parameter.visible === false || isAdvancedUiHint(parameter.uiHint);
 }
 
 function normalizeHint(value: string | undefined): string {

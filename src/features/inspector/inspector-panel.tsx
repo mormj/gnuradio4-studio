@@ -4,7 +4,7 @@ import { useQueries } from '@tanstack/react-query';
 import { PanelHeader } from '../../components/panel-header';
 import { StatusPill } from '../../components/status-pill';
 import { formatTimestamp } from '../../lib/utils/ui-formatting';
-import { isAdvancedParameterName, isAdvancedUiHint } from '../../lib/utils/parameter-groups';
+import { isAdvancedParameter } from '../../lib/utils/parameter-groups';
 import { resolveRenderedPorts } from '../ports/model/resolveRenderedPorts';
 import type { SchemaPort } from '../ports/model/types';
 import { useBlockDetailsQuery } from './hooks/use-block-details-query';
@@ -229,9 +229,7 @@ function RuntimeSettingsCard({
     .sort(([left], [right]) => left.localeCompare(right))
     .forEach(([name, value]) => {
       const parameterMeta = parameterMetaByName.get(name);
-      const advanced =
-        isAdvancedParameterName(name) ||
-        (parameterMeta ? isAdvancedUiHint(parameterMeta.uiHint) : false);
+      const advanced = parameterMeta ? isAdvancedParameter(parameterMeta) : false;
 
       if (advanced) {
         advancedEntries.push([name, value]);
@@ -370,6 +368,9 @@ function RuntimeSettingsCard({
           <p className="mb-2 text-[11px] text-slate-500">{typeLabel}</p>
           <input
             type={typeof value === 'number' ? 'number' : 'text'}
+            min={parameterMeta?.minimum}
+            max={parameterMeta?.maximum}
+            title={parameterMeta?.unit}
             value={inputValue}
             disabled={!editable || mutation.isPending}
             onChange={(event) => {

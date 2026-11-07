@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, type MouseEvent } from 'react';
 import type { BlockDetails, BlockParameterMeta } from '../../lib/api/block-details';
-import { isAdvancedParameterName, isAdvancedUiHint } from '../../lib/utils/parameter-groups';
+import { isAdvancedParameter } from '../../lib/utils/parameter-groups';
 import { useEditorStore } from '../graph-editor/store/editorStore';
 import { useBlockDetailsQuery } from '../inspector/hooks/use-block-details-query';
 import { toCanonicalBlockDisplayName } from '../graph-editor/model/presentation';
@@ -43,7 +43,7 @@ const EMPTY_STUDIO_PANELS: readonly StudioPanelSpec[] = [];
 const PARAMETER_ROW_GRID = 'grid grid-cols-[minmax(0,9.5rem)_6rem_minmax(0,1fr)_4rem_1.75rem] items-center gap-1.5';
 
 function isAdvancedParameterMeta(parameter: BlockParameterMeta): boolean {
-  return isAdvancedParameterName(parameter.name) || isAdvancedUiHint(parameter.uiHint);
+  return isAdvancedParameter(parameter);
 }
 
 export function getBlockParameterTypeLabel(parameter: BlockParameterMeta): string {
@@ -51,7 +51,11 @@ export function getBlockParameterTypeLabel(parameter: BlockParameterMeta): strin
 }
 
 export function getBlockParameterHoverTitle(parameter: BlockParameterMeta): string {
-  return parameter.description?.trim() || parameter.label;
+  return [parameter.description?.trim() || parameter.label,
+    parameter.unit ? `Unit: ${parameter.unit}` : '',
+    parameter.minimum !== undefined ? `Minimum: ${parameter.minimum}` : '',
+    parameter.maximum !== undefined ? `Maximum: ${parameter.maximum}` : '',
+  ].filter(Boolean).join('\n');
 }
 
 export function getBlockParameterEnumTypeLabel(parameter: BlockParameterMeta): string {
@@ -563,7 +567,7 @@ export function BlockPropertiesModal({ instanceId, onClose }: BlockPropertiesMod
                           title={getBlockParameterHoverTitle(parameter)}
                           className="min-w-0 cursor-help truncate text-xs font-medium text-slate-200"
                         >
-                          {getAuthoringParameterLabel(block.blockTypeId, parameter.name, parameter.label)}
+                          {getAuthoringParameterLabel(block.blockTypeId, parameter.name, parameter.unit ? `${parameter.label} (${parameter.unit})` : parameter.label)}
                         </label>
                         <select
                           value={draftValues[parameter.name]?.bindingKind ?? 'literal'}
@@ -664,7 +668,7 @@ export function BlockPropertiesModal({ instanceId, onClose }: BlockPropertiesMod
                           title={getBlockParameterHoverTitle(parameter)}
                           className="min-w-0 cursor-help truncate text-xs font-medium text-slate-200"
                         >
-                          {getAuthoringParameterLabel(block.blockTypeId, parameter.name, parameter.label)}
+                          {getAuthoringParameterLabel(block.blockTypeId, parameter.name, parameter.unit ? `${parameter.label} (${parameter.unit})` : parameter.label)}
                         </label>
                         <select
                           value={draftValues[parameter.name]?.bindingKind ?? 'literal'}
