@@ -36,7 +36,6 @@ export type BlockPortMeta = {
   name: string;
   direction: 'input' | 'output' | 'unknown';
   cardinalityKind: 'fixed' | 'dynamic';
-  isExplicitDynamicCollection?: boolean;
   currentPortCount?: number;
   renderPortCount?: number;
   minPortCount?: number;
@@ -94,14 +93,7 @@ function normalizePort(port: PortMetaDto, direction: 'input' | 'output'): BlockP
   const normalizedCardinality = port.cardinality_kind === 'dynamic' ? 'dynamic' : 'fixed';
   const normalizedMaxPortCount =
     port.max_port_count !== undefined && port.max_port_count >= 0 ? port.max_port_count : undefined;
-  const isExplicitDynamicCollection =
-    port.cardinality_kind !== undefined ||
-    port.current_port_count !== undefined ||
-    port.render_port_count !== undefined ||
-    port.min_port_count !== undefined ||
-    port.max_port_count !== undefined ||
-    port.size_parameter !== undefined ||
-    port.handle_name_template !== undefined;
+
 
   return {
     name: port.name,
@@ -112,7 +104,6 @@ function normalizePort(port: PortMetaDto, direction: 'input' | 'output'): BlockP
     portKind: port.port_kind,
     isSynchronous: port.is_synchronous,
     schemaVersion: port.schema_version,
-    isExplicitDynamicCollection,
     currentPortCount: port.current_port_count,
     renderPortCount: port.render_port_count,
     minPortCount: port.min_port_count,
