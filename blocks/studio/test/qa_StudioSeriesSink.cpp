@@ -60,6 +60,11 @@ void testDefaultTransportAndCadence() {
     assert(block.update_ms == 250U);
     assert(block.n_inputs == 1UZ);
     assert(block.in.size() == 1UZ);
+    block.settings().init();
+    assert(block.meta_information.value.contains("n_inputs::port_count_for"));
+    std::ignore = block.settings().setStaged({{"n_inputs", gr::Size_t{2UZ}}});
+    std::ignore = block.settings().applyStagedParameters();
+    assert(block.in.size() == 2UZ);
 }
 
 void testWebSocketTransportLifecycle() {

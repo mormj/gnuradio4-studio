@@ -619,7 +619,7 @@ struct StudioSeriesSink : Block<StudioSeriesSink<T>> {
     Annotated<std::uint32_t, "update_ms", Doc<"Suggested update interval in milliseconds for http_poll and websocket transports">, Visible> update_ms = 250U;
     Annotated<gr::Size_t, "window_size", Doc<"Samples per channel kept in memory">, Visible> window_size = 1024UZ;
     Annotated<detail::SeriesWindowMode, "window_mode", Doc<"Window update mode">, Visible> window_mode = detail::SeriesWindowMode::rolling;
-    Annotated<gr::Size_t, "n_inputs", Doc<"Number of input series">, Visible, Limits<1U, 32U>> n_inputs = 1UZ;
+    Annotated<gr::Size_t, "n_inputs", Doc<"Number of input series">, Visible, Limits<1U, 32U>, PortCountFor<"in">> n_inputs = 1UZ;
     Annotated<std::string, "plot_title", Doc<"Optional semantic plot title for Studio Application">, Visible> plot_title = "";
     Annotated<std::string, "x_label", Doc<"Optional semantic x-axis label for Studio Application">, Visible> x_label = "";
     Annotated<std::string, "y_label", Doc<"Optional semantic y-axis label for Studio Application">, Visible> y_label = "";
