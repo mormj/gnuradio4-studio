@@ -334,19 +334,6 @@ export function StudioPage() {
     [runtimeContextsByTabId],
   );
 
-  const derivedWorkspacePanels = useMemo(
-    () =>
-      deriveDefaultStudioPanelsFromNodes(
-        nodes
-          .filter((node) => (node.executionMode ?? 'active') === 'active')
-          .map((node) => ({
-            instanceId: node.instanceId,
-            blockTypeId: node.blockTypeId,
-            displayName: node.displayName,
-          })),
-      ),
-    [nodes],
-  );
   const uniqueBlockTypes = useMemo(
     () => Array.from(new Set(nodes.map((node) => node.blockTypeId))),
     [nodes],
@@ -371,6 +358,20 @@ export function StudioPage() {
     });
     return map;
   }, [blockDetailQueries, uniqueBlockTypes]);
+  const derivedWorkspacePanels = useMemo(
+    () =>
+      deriveDefaultStudioPanelsFromNodes(
+        nodes
+          .filter((node) => (node.executionMode ?? 'active') === 'active')
+          .map((node) => ({
+            instanceId: node.instanceId,
+            blockTypeId: node.blockTypeId,
+            displayName: node.displayName,
+          })),
+        blockDetailsByType,
+      ),
+    [nodes, blockDetailsByType],
+  );
   const currentSubmissionContent = useMemo(() => {
     try {
       return buildCurrentGraphSubmissionFromEditorSnapshot(currentSnapshot, { blockDetailsByType }).content;
@@ -630,6 +631,7 @@ export function StudioPage() {
         );
         const bindingView = resolveCurrentSessionStudioBindingView({
           blockTypeId: sourceNode.blockTypeId,
+          reflectedBinding: blockDetailsByType.get(sourceNode.blockTypeId)?.studioBinding,
           nodeInstanceId: sourceNode.instanceId,
           parameterValues: resolvedParameterValues,
           session: runtime?.session,
@@ -652,12 +654,13 @@ export function StudioPage() {
           nodePanelTitle: nodePanelTitlesById.get(sourceNode.instanceId),
           nodeDisplayName: sourceNode.displayName,
           nodeBlockTypeId: sourceNode.blockTypeId,
-          nodeParameters: effectiveParameterValues,
+          reflectedBinding: blockDetailsByType.get(sourceNode.blockTypeId)?.studioBinding,
+          nodeParameters: resolvedParameterValues,
           controlWidgets,
           bindingStatus: bindingView.status,
           bindingTransport: bindingView.transport,
           bindingEndpoint: bindingView.endpoint,
-          bindingShowEndpointInUi: !isDescriptorBasedBindingFamily(sourceNode.blockTypeId),
+          bindingShowEndpointInUi: !isDescriptorBasedBindingFamily(sourceNode.blockTypeId, blockDetailsByType.get(sourceNode.blockTypeId)?.studioBinding),
           bindingUpdateMs: bindingView.updateMs,
           bindingSampleRate: bindingView.sampleRate,
           bindingChannels: bindingView.channels,

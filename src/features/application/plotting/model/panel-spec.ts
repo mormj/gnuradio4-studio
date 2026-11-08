@@ -55,13 +55,14 @@ function parseSeriesLabels(parameters: PlotParameterMap | undefined): string[] |
   return labels.length > 0 ? labels : undefined;
 }
 
-function parseSeriesCount(parameters: PlotParameterMap | undefined, isSeriesSink: boolean): number | undefined {
-  const raw = readParameterValue(parameters, isSeriesSink ? ['n_inputs'] : ['channels']);
+function parseSeriesCount(parameters: PlotParameterMap | undefined, countParameter?: string): number | undefined {
+  const raw = countParameter ? readParameterValue(parameters, [countParameter]) : undefined;
   if (raw === undefined) {
     return undefined;
   }
-  const parsed = Number.parseInt(String(raw), 10);
-  if (!Number.isFinite(parsed) || parsed <= 0) {
+  const text = String(raw).trim();
+  const parsed = /^\d+$/.test(text) ? Number(text) : NaN;
+  if (!Number.isSafeInteger(parsed) || parsed <= 0) {
     return undefined;
   }
   return parsed;
@@ -218,7 +219,7 @@ export function derivePlotPanelSpec(entry: WorkspacePanelViewModel): PlotPanelSp
     return null;
   }
 
-  const binding = entry.nodeBlockTypeId ? lookupStudioKnownBlockBinding(entry.nodeBlockTypeId) : null;
+  const binding = entry.nodeBlockTypeId ? lookupStudioKnownBlockBinding(entry.nodeBlockTypeId, entry.reflectedBinding) : null;
   const payloadFormat = binding?.payloadFormat;
   const title =
     readTextParameterValue(entry.nodeParameters, ['plot_title', 'title']) ??
@@ -227,7 +228,7 @@ export function derivePlotPanelSpec(entry: WorkspacePanelViewModel): PlotPanelSp
     entry.panel.nodeId;
   const persistenceEnabled = parseBooleanValue(readParameterValue(entry.nodeParameters, ['persistence'])) ?? false;
   const isPowerSpectrum =
-    Boolean(binding?.blockTypeId.startsWith('gr::studio::StudioPowerSpectrumSink'));
+    binding?.semanticKind === 'power_spectrum';
   const isPersistentSpectrum =
     persistenceEnabled &&
     isPowerSpectrum;
@@ -251,10 +252,10 @@ export function derivePlotPanelSpec(entry: WorkspacePanelViewModel): PlotPanelSp
     (isSeries2D || isWaterfall || isHistogram
       ? undefined
       : buildDefaultSeriesLabels(
-          parseSeriesCount(entry.nodeParameters, Boolean(binding?.blockTypeId.startsWith('gr::studio::StudioSeriesSink<'))),
+          parseSeriesCount(entry.nodeParameters, binding?.parameters.seriesCount ?? binding?.parameters.channels),
         ));
   const windowSize = parseWindowSize(entry.nodeParameters) ??
-    (binding?.blockTypeId.startsWith('gr::studio::StudioDataSetSink<') ? -1 : 1024);
+    (binding?.semanticKind === 'dataset' ? -1 : 1024);
   const maxLabels = parsePositiveInteger(entry.nodeParameters, ['max_labels', 'maxLabels']) ?? 100;
   const autoscale =
     parseBooleanValue(readParameterValue(entry.nodeParameters, ['autoscale', 'auto_scale'])) ?? true;
@@ -290,7 +291,7 @@ export function derivePlotPanelSpec(entry: WorkspacePanelViewModel): PlotPanelSp
       : isSeries2D || isHistogram
       ? []
       : X_RANGE_PARAMETER_KEYS;
-  const cacheKey = buildPlotSpecCacheKey(entry, ignoredRangeKeys);
+  const cacheKey = `${buildPlotSpecCacheKey(entry, ignoredRangeKeys)}:${JSON.stringify(entry.reflectedBinding)}`;
   const cached = plotSpecCache.get(cacheKey);
   if (cached) {
     return cached;

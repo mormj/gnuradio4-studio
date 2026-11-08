@@ -1,3 +1,4 @@
+import type { StudioKnownBlockBinding } from '../graph-editor/runtime/known-block-bindings';
 import {
   type CollisionDetection,
   DndContext,
@@ -32,6 +33,7 @@ import { readExplicitPlotPanelTitle } from './model/panel-display-title';
 import type { ExpressionBinding } from '../variables/model/types';
 
 export type WorkspacePanelViewModel = {
+  reflectedBinding?: StudioKnownBlockBinding | null;
   panel: StudioPanelSpec;
   studioPlotPalettes?: readonly StudioPlotPaletteSpec[];
   nodePanelTitle?: string;
