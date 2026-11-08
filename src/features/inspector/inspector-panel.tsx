@@ -136,7 +136,6 @@ function RuntimeSettingsCard({
   blockDetails?: BlockDetails;
 }) {
   const updateNodeParameters = useEditorStore((state) => state.updateNodeParameters);
-  const updateNodeParameterBindings = useEditorStore((state) => state.updateNodeParameterBindings);
   const selectedNodeRuntimeName = selectedBlock?.instanceId;
   const availability = resolveRuntimeSettingsAvailability({
     session: runtimeContext?.session,
@@ -185,18 +184,6 @@ function RuntimeSettingsCard({
         },
         mode: 'staged',
       });
-      if (
-        selectedBlock &&
-        blockDetails?.parameters.find((parameter) => parameter.name === name)?.updatePolicy === 'live' &&
-        (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean' || value === null)
-      ) {
-        updateNodeParameterBindings(selectedBlock.instanceId, {
-          [name]: {
-            kind: 'literal',
-            value,
-          },
-        });
-      }
     } catch (error) {
       setSaveError(toRuntimeSettingsErrorMessage(error));
       throw error;
