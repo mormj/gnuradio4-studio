@@ -62,6 +62,9 @@ void testDefaultTransportAndCadence() {
     assert(block.in.size() == 1UZ);
     block.settings().init();
     assert(block.meta_information.value.contains("n_inputs::port_count_for"));
+    assert(block.meta_information.value.at("n_inputs::update_policy").value_or(std::string_view{}) == "topology");
+    assert(block.meta_information.value.at("autoscale::update_policy").value_or(std::string_view{}) == "live");
+    assert(block.meta_information.value.at("update_ms::update_policy").value_or(std::string_view{}) == "stopped");
     std::ignore = block.settings().setStaged({{"n_inputs", gr::Size_t{2UZ}}});
     std::ignore = block.settings().applyStagedParameters();
     assert(block.in.size() == 2UZ);
