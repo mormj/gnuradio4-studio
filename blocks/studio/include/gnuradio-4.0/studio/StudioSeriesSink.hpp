@@ -626,8 +626,8 @@ struct StudioSeriesSink : Block<StudioSeriesSink<T>> {
     Annotated<std::string, "series_labels", Doc<"Optional comma-separated series labels for Studio Application">, Visible> series_labels = "";
     Annotated<gr::Size_t, "max_labels", Doc<"Maximum visible tag labels in Studio Application">, Visible> max_labels = 100UZ;
     Annotated<bool, "autoscale", Doc<"Enable automatic axis scaling in Studio Application">, Visible, UpdatePolicy<SettingUpdatePolicy::Live>> autoscale = true;
-    Annotated<float, "y_min", Doc<"Optional y-axis minimum when autoscale is disabled">, Visible, UpdatePolicy<SettingUpdatePolicy::Live>> y_min = 0.0F;
-    Annotated<float, "y_max", Doc<"Optional y-axis maximum when autoscale is disabled">, Visible, UpdatePolicy<SettingUpdatePolicy::Live>> y_max = 0.0F;
+    Annotated<float, "y_min", Doc<"Optional y-axis minimum when autoscale is disabled">, Visible, UpdatePolicy<SettingUpdatePolicy::Live>, EnabledWhen<"autoscale", false>> y_min = 0.0F;
+    Annotated<float, "y_max", Doc<"Optional y-axis maximum when autoscale is disabled">, Visible, UpdatePolicy<SettingUpdatePolicy::Live>, EnabledWhen<"autoscale", false>> y_max = 0.0F;
     Annotated<std::string, "topic", Doc<"Optional stream topic for pub/sub transports">, Visible> topic = "";
 
     GR_MAKE_REFLECTABLE(

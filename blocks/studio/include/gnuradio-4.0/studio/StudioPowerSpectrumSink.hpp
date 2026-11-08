@@ -1057,15 +1057,15 @@ struct StudioPowerSpectrumSink : Block<StudioPowerSpectrumSink<T>> {
     Annotated<float, "center_freq", Doc<"Optional RF center frequency in Hz added to the displayed frequency axis">, Visible> center_freq = 0.0F;
     Annotated<bool, "output_in_db", Doc<"Render the averaged power spectrum in dB">, Visible> output_in_db = true;
     Annotated<bool, "persistence", Doc<"Enable phosphor persistence rendering in Studio Application">, Visible, UpdatePolicy<SettingUpdatePolicy::Live>> persistence = false;
-    Annotated<float, "phosphor_intensity", Doc<"Phosphor intensity multiplier when persistence is enabled">, Visible, UpdatePolicy<SettingUpdatePolicy::Live>> phosphor_intensity = 1.1F;
-    Annotated<float, "phosphor_decay_ms", Doc<"Phosphor persistence decay time in milliseconds">, Visible, UpdatePolicy<SettingUpdatePolicy::Live>> phosphor_decay_ms = 1024.0F;
+    Annotated<float, "phosphor_intensity", Doc<"Phosphor intensity multiplier when persistence is enabled">, Visible, UpdatePolicy<SettingUpdatePolicy::Live>, EnabledWhen<"persistence", true>> phosphor_intensity = 1.1F;
+    Annotated<float, "phosphor_decay_ms", Doc<"Phosphor persistence decay time in milliseconds">, Visible, UpdatePolicy<SettingUpdatePolicy::Live>, EnabledWhen<"persistence", true>> phosphor_decay_ms = 1024.0F;
     Annotated<std::string, "plot_title", Doc<"Optional semantic plot title for Studio Application">, Visible> plot_title = "Power Spectrum";
     Annotated<std::string, "x_label", Doc<"Optional semantic x-axis label for Studio Application">, Visible> x_label = "Frequency";
     Annotated<std::string, "y_label", Doc<"Optional semantic y-axis label for Studio Application">, Visible> y_label = "Power";
     Annotated<std::string, "series_labels", Doc<"Optional comma-separated series labels for Studio Application">, Visible> series_labels = "Power";
     Annotated<bool, "autoscale", Doc<"Enable automatic axis scaling in Studio Application">, Visible, UpdatePolicy<SettingUpdatePolicy::Live>> autoscale = true;
-    Annotated<float, "y_min", Doc<"Optional y-axis minimum when autoscale is disabled">, Visible, UpdatePolicy<SettingUpdatePolicy::Live>> y_min = 0.0F;
-    Annotated<float, "y_max", Doc<"Optional y-axis maximum when autoscale is disabled">, Visible, UpdatePolicy<SettingUpdatePolicy::Live>> y_max = 0.0F;
+    Annotated<float, "y_min", Doc<"Optional y-axis minimum when autoscale is disabled">, Visible, UpdatePolicy<SettingUpdatePolicy::Live>, EnabledWhen<"autoscale", false>> y_min = 0.0F;
+    Annotated<float, "y_max", Doc<"Optional y-axis maximum when autoscale is disabled">, Visible, UpdatePolicy<SettingUpdatePolicy::Live>, EnabledWhen<"autoscale", false>> y_max = 0.0F;
     Annotated<std::string, "topic", Doc<"Optional stream topic for pub/sub transports">, Visible> topic = "";
 
     GR_MAKE_REFLECTABLE(

@@ -594,16 +594,16 @@ struct StudioWaterfallSink : Block<StudioWaterfallSink<T>> {
     Annotated<float, "sample_rate", Doc<"Input sample rate in Hz">, Visible> sample_rate = 1.0F;
     Annotated<bool, "output_in_db", Doc<"Render the waterfall history in dB">, Visible> output_in_db = true;
     Annotated<bool, "autoscale", Doc<"Automatically derive the waterfall colormap range from live data">, Visible, UpdatePolicy<SettingUpdatePolicy::Live>> autoscale = true;
-    Annotated<float, "z_min", Doc<"Manual waterfall colormap minimum when autoscale is disabled">, Visible, UpdatePolicy<SettingUpdatePolicy::Live>> z_min = 0.0F;
-    Annotated<float, "z_max", Doc<"Manual waterfall colormap maximum when autoscale is disabled">, Visible, UpdatePolicy<SettingUpdatePolicy::Live>> z_max = 1.0F;
+    Annotated<float, "z_min", Doc<"Manual waterfall colormap minimum when autoscale is disabled">, Visible, UpdatePolicy<SettingUpdatePolicy::Live>, EnabledWhen<"autoscale", false>> z_min = 0.0F;
+    Annotated<float, "z_max", Doc<"Manual waterfall colormap maximum when autoscale is disabled">, Visible, UpdatePolicy<SettingUpdatePolicy::Live>, EnabledWhen<"autoscale", false>> z_max = 1.0F;
     Annotated<std::string, "plot_title", Doc<"Optional semantic plot title for Studio Application">, Visible> plot_title = "Waterfall";
     Annotated<std::string, "x_label", Doc<"Optional semantic x-axis label for Studio Application">, Visible> x_label = "Frequency";
     Annotated<std::string, "y_label", Doc<"Optional semantic y-axis label for Studio Application">, Visible> y_label = "Power";
     Annotated<std::string, "series_labels", Doc<"Optional comma-separated series labels for Studio Application">, Visible> series_labels = "Waterfall";
-    Annotated<float, "x_min", Doc<"Optional x-axis minimum when autoscale is disabled">, Visible, UpdatePolicy<SettingUpdatePolicy::Live>> x_min = 0.0F;
-    Annotated<float, "x_max", Doc<"Optional x-axis maximum when autoscale is disabled">, Visible, UpdatePolicy<SettingUpdatePolicy::Live>> x_max = 0.0F;
-    Annotated<float, "y_min", Doc<"Optional y-axis minimum when autoscale is disabled">, Visible, UpdatePolicy<SettingUpdatePolicy::Live>> y_min = 0.0F;
-    Annotated<float, "y_max", Doc<"Optional y-axis maximum when autoscale is disabled">, Visible, UpdatePolicy<SettingUpdatePolicy::Live>> y_max = 0.0F;
+    Annotated<float, "x_min", Doc<"Optional x-axis minimum when autoscale is disabled">, Visible, UpdatePolicy<SettingUpdatePolicy::Live>, EnabledWhen<"autoscale", false>> x_min = 0.0F;
+    Annotated<float, "x_max", Doc<"Optional x-axis maximum when autoscale is disabled">, Visible, UpdatePolicy<SettingUpdatePolicy::Live>, EnabledWhen<"autoscale", false>> x_max = 0.0F;
+    Annotated<float, "y_min", Doc<"Optional y-axis minimum when autoscale is disabled">, Visible, UpdatePolicy<SettingUpdatePolicy::Live>, EnabledWhen<"autoscale", false>> y_min = 0.0F;
+    Annotated<float, "y_max", Doc<"Optional y-axis maximum when autoscale is disabled">, Visible, UpdatePolicy<SettingUpdatePolicy::Live>, EnabledWhen<"autoscale", false>> y_max = 0.0F;
     Annotated<std::string, "topic", Doc<"Optional stream topic for pub/sub transports">, Visible> topic = "";
 
     GR_MAKE_REFLECTABLE(
