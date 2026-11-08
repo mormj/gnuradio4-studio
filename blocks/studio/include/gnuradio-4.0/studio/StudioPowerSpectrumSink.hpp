@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include <gnuradio-4.0/studio/StudioCapabilities.hpp>
 #include <gnuradio-4.0/Block.hpp>
 #include <gnuradio-4.0/BlockRegistry.hpp>
 
@@ -1043,6 +1044,7 @@ GR_REGISTER_BLOCK("gr::studio::StudioPowerSpectrumSink", gr::studio::StudioPower
 
 template<detail::SupportedPowerSpectrumSample T>
 struct StudioPowerSpectrumSink : Block<StudioPowerSpectrumSink<T>> {
+    using BlockMetadata = gr::BlockMetadata<detail::StudioVisualization<"series2d", "dataset-xy-json-v1", "", "power_spectrum", true, "http_poll", "websocket">>;
     using Description = Doc<"@brief Studio power spectrum sink with FFT windowing, averaged spectra, and optional phosphor persistence.">;
 
     PortIn<T> in;
